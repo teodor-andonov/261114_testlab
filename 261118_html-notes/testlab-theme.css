@@ -55,3 +55,9 @@
 #blockCode:focus,.block-fields input:focus,.block-fields select:focus{border-color:var(--accent)}
 .block-save{background:var(--accent);color:var(--bg);font-size:12px;font-weight:600;padding:0 12px;white-space:nowrap}.block-save:hover{background:var(--accent);color:var(--bg);filter:brightness(1.08)}
 @media(max-width:480px){.block-fields{grid-template-columns:minmax(100px,1fr) 85px}.block-fields label:last-child{grid-column:1/-1}}
+
+.folder-destination{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11px;min-height:32px;color:var(--muted)}
+.destination-label{flex-shrink:0}.folder-destination #saveLocation{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-weight:550}
+.tree-item button.folder-selected{background:var(--hover);color:var(--accent);font-weight:550}
+.tree-item .folder-add,.tree-item .folder-reconnect{min-width:23px;width:23px;height:25px;padding:3px;color:var(--muted)}.tree-item .folder-add svg,.tree-item .folder-reconnect svg{width:15px;height:15px}.tree-item .folder-add{opacity:0}.tree-item:hover .folder-add,.tree-item:focus-within .folder-add,.tree-item:has(.folder-selected) .folder-add{opacity:1}.tree-item .folder-reconnect{color:var(--accent)}
+@media(pointer:coarse){.tree-item .folder-add,.tree-item .remove{opacity:1}}
