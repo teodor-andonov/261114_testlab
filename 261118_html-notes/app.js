@@ -1,5 +1,6 @@
 import {formatHTML,highlightHTML} from './source-tools.js';
 import {copyNoteBlock,makeNoteBlock,mountNoteBlocks,examples} from './note-blocks.js';
+import {readWorkspace,writeWorkspace,permission,noteName,createNoteHandle,writeNote,pathKey} from './folder-workspace.js';
 const $=id=>document.getElementById(id);
 const editor=$('editor'),source=$('source'),palette=$('palette'),sourcePane=$('sourcePane'),sourceHighlight=$('sourceHighlight'),sourceGutter=$('sourceGutter');
 const paths={
@@ -19,6 +20,7 @@ const paths={
 const icon=k=>'<svg viewBox="0 0 24 24" aria-hidden="true">'+(paths[k]||paths.file)+'</svg>';
 document.querySelectorAll('button[data-action]').forEach(b=>{if(!b.textContent.trim()&&!b.querySelector('svg'))b.innerHTML=icon(b.dataset.action)});
 let assets=new Map(),urls=new Map(),handle=null,filename='Untitled.html',dirty=false,roots=[],savedRange=null,sourceMode=false;
+let expanded=new Set(),selected=null,activeFile=null,noteFolder=null,dirs=new Map(),workspaceReady=false,saveBusy=false,editRevision=0,documentRevision=0,persistQueue=Promise.resolve();
 const raster=new Set(['image/png','image/jpeg','image/gif','image/webp','image/avif','image/bmp','image/x-icon','image/vnd.microsoft.icon']);
 const supportedTags=new Set('P DIV SPAN BR H1 H2 H3 H4 H5 H6 UL OL LI STRONG B EM I S STRIKE DEL U BLOCKQUOTE PRE CODE HR TABLE THEAD TBODY TFOOT TR TH TD A IMG INPUT SUP SUB MARK FIGURE FIGCAPTION'.split(' '));
 const dropTags=new Set('SCRIPT STYLE LINK META IFRAME OBJECT EMBED TEMPLATE NOSCRIPT SVG MATH FORM BUTTON VIDEO AUDIO SOURCE BASE HEAD'.split(' '));
@@ -26,7 +28,7 @@ const safeLink=v=>/^(https?:\/\/|mailto:|#)/i.test(v||'');
 function status(s){$('message').textContent=s}
 function info(){editor.dataset.empty=String(!editor.textContent.trim()&&!editor.querySelector('img,table,input,hr,a[data-asset]'));const text=sourceMode?source.value:editor.textContent;const words=text.trim()?text.trim().split(/\s+/).length:0;$('filename').textContent=filename;$('dirty').textContent=dirty?'•':'';$('stats').textContent=words+' words · '+assets.size+' assets';document.title=(dirty?'* ':'')+filename+' — HTML Notes'}
 let infoFrame=0;
-function changed(){dirty=true;editor.dataset.empty=String(!editor.textContent.trim()&&!editor.querySelector('img,table,input,hr,a[data-asset]'));$('dirty').textContent='•';if(!infoFrame)infoFrame=requestAnimationFrame(()=>{infoFrame=0;info()})}
+function changed(){editRevision++;dirty=true;editor.dataset.empty=String(!editor.textContent.trim()&&!editor.querySelector('img,table,input,hr,a[data-asset]'));$('dirty').textContent='•';if(!infoFrame)infoFrame=requestAnimationFrame(()=>{infoFrame=0;info()})}
 function revoke(){for(const url of urls.values())URL.revokeObjectURL(url);urls.clear()}
 function blobURL(id){if(urls.has(id))return urls.get(id);const a=assets.get(id);if(!a)return '';try{const bytes=Uint8Array.from(atob(a.data),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:raster.has(a.mime)?a.mime:'application/octet-stream'}));urls.set(id,url);return url}catch{return ''}}
 function dom(tag,txt){const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;return e}
@@ -88,8 +90,8 @@ function remember(){const selection=getSelection();if(selection?.rangeCount&&edi
 function restore(){if(sourceMode){setSource(false);if(sourceMode)return false}editor.focus();const selection=getSelection();if(savedRange&&editor.contains(savedRange.commonAncestorContainer)){selection.removeAllRanges();selection.addRange(savedRange)}else{const r=document.createRange();r.selectNodeContents(editor);r.collapse(false);selection.removeAllRanges();selection.addRange(r)}return true}
 function execute(command,value=null){if(!restore())return;document.execCommand('styleWithCSS',false,false);document.execCommand('defaultParagraphSeparator',false,'p');document.execCommand(command,false,value);remember();changed();updateFormatting()}
 function insert(html){execute('insertHTML',html);hydrate()}
-function resetDocument(name,content,newAssets,newHandle){closeSlash();revoke();assets=newAssets;handle=newHandle;filename=name;dirty=false;savedRange=null;sourceMode=false;sourcePane.hidden=true;editor.hidden=false;document.querySelector('[data-action=source]').classList.remove('active');editor.innerHTML=scrub(content)||'<p><br></p>';hydrate();info()}
-function safeToReplace(){return !dirty||confirm('Discard unsaved changes?')}
+function resetDocument(name,content,newAssets,newHandle){documentRevision++;editRevision=0;activeFile=null;noteFolder=null;closeSlash();revoke();assets=newAssets;handle=newHandle;filename=name;dirty=false;savedRange=null;sourceMode=false;sourcePane.hidden=true;editor.hidden=false;document.querySelector('[data-action=source]').classList.remove('active');editor.innerHTML=scrub(content)||'<p><br></p>';hydrate();info()}
+function safeToReplace(){return !saveBusy&&(!dirty||confirm('Discard unsaved changes?'))}
 function importDocument(text,name,newHandle){
  const t=document.createElement('template');t.innerHTML=text;
  const assetNode=t.content.querySelector('script#html-notes-assets[type="application/json"]');
@@ -102,7 +104,7 @@ function importDocument(text,name,newHandle){
  resetDocument(name,body.innerHTML,next,newHandle);
  status(note?'Opened local note':'Imported HTML as editable content; scripts, styling and remote images removed');
 }
-async function openFile(file,newHandle=null){if(!safeToReplace())return;try{importDocument(await file.text(),file.name,newHandle)}catch(e){status('Open failed: '+e.message)}}
+async function openFile(file,newHandle=null){if(saveBusy||!safeToReplace())return false;try{importDocument(await file.text(),file.name,newHandle);return true}catch(e){status('Open failed: '+e.message);return false}}
 async function pickOpen(){if(window.showOpenFilePicker){try{const [h]=await showOpenFilePicker({types:[{description:'HTML notes',accept:{'text/html':['.html','.htm']}}]});if(h)await openFile(await h.getFile(),h)}catch(e){if(e.name!=='AbortError')status('Open failed: '+e.message)}}else $('openInput').click()}
 function viewerResolve(){
  const rasterTypes=new Set(['image/png','image/jpeg','image/gif','image/webp','image/avif','image/bmp','image/x-icon','image/vnd.microsoft.icon']);
@@ -128,27 +130,158 @@ function exportHTML(){const body=bodySource();const t=document.createElement('te
  const blockStyle='.note-block-view{border:1px solid #8885;border-radius:7px;overflow:hidden;margin:1em 0}.note-block-bar{display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid #8885;font:12px system-ui,sans-serif}.note-block-title{flex:1;overflow:hidden;text-overflow:ellipsis}.note-block-state{opacity:.65}.note-block-btn{font:15px system-ui,sans-serif;cursor:pointer;border:1px solid #8885;border-radius:4px;background:transparent;color:inherit;padding:3px 8px}.note-block-frame{display:block;width:100%;border:0;background:transparent}';
  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<meta name="html-notes-format" content="2">\n<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src blob: data:; media-src blob: data:; font-src data:; frame-src about:; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">\n<title>'+escapeHTML(title)+'</title>\n<style>html{color-scheme:light dark}body{font:16px/1.65 system-ui,sans-serif;max-width:760px;margin:48px auto;padding:0 22px;overflow-wrap:anywhere}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto;display:block}table{border-collapse:collapse;width:100%}td,th{border:1px solid #9998;padding:7px 10px}pre{white-space:pre-wrap;background:#8882;padding:12px}blockquote{border-left:3px solid #888;padding-left:1em;margin-left:0}li:has(>input[type=checkbox]){list-style:none}a[data-asset]{display:inline-block;border:1px solid #8888;padding:4px 8px;border-radius:4px}'+blockStyle+'</style>\n</head>\n<body>\n<article id="html-notes-body">\n'+readable+'\n</article>\n<!-- Asset section: binary payloads are below. The note above can be read independently. -->\n<script type="application/json" id="html-notes-assets">\n'+json+'\n</script>\n<script>('+viewerResolve.toString()+')();('+mountNoteBlocks.toString()+')(document.getElementById("html-notes-body"));</script>\n</body>\n</html>\n';
 }
-async function save(as=false){if(sourceMode&&!confirmSourceLoss())return;try{let target=as?null:handle;if(!target&&window.showSaveFilePicker)target=await showSaveFilePicker({suggestedName:filename,types:[{description:'HTML note',accept:{'text/html':['.html']}}]});
- if(target){const w=await target.createWritable();await w.write(exportHTML());await w.close();handle=target;filename=target.name;dirty=false;info();status('Saved to '+filename);return}
- const url=URL.createObjectURL(new Blob([exportHTML()],{type:'text/html'}));const a=dom('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);status('Export downloaded; original file not overwritten');dirty=false;info();
- }catch(e){if(e.name!=='AbortError')status('Save failed: '+e.message)}}
+async function save(as=false){
+ if(saveBusy||sourceMode&&!confirmSourceLoss())return;
+ saveBusy=true;const docRevision=documentRevision;
+ try{
+  let target=as?null:handle,folder=noteFolder||dirs.get(selected)||null;
+  if(!target&&!as&&folder?.handle){
+   const input=filename==='Untitled.html'?prompt('Save note in '+folder.handle.name,filename):filename;
+   if(input===null)return;
+   const name=noteName(input);
+   if(!await ensureFolderAccess(folder,true))return;
+   target=await createNoteHandle(folder.handle,name,n=>confirm(n+' already exists. Replace it?'));
+   if(!target)return;
+  }
+  if(!target&&window.showSaveFilePicker){
+   const options={suggestedName:filename,types:[{description:'HTML note',accept:{'text/html':['.html','.htm']}}]};
+   if(folder?.handle)options.startIn=folder.handle;
+   try{target=await showSaveFilePicker(options)}catch(e){if(e.name!=='TypeError')throw e;delete options.startIn;target=await showSaveFilePicker(options)}
+   if(as)folder=null;
+  }
+  if(target){
+   if(!await permission(target,'readwrite',true))throw new Error('Write permission denied. Reconnect the folder or use Save As.');
+   const snapshot=exportHTML(),revision=editRevision;
+   await writeNote(target,snapshot);
+   if(docRevision!==documentRevision)return;
+   handle=target;filename=target.name;dirty=editRevision!==revision;
+   if(folder?.handle){
+    let belongs=false;try{const path=await folder.handle.resolve(target);belongs=Array.isArray(path)&&path.length===1}catch{}
+    if(belongs){noteFolder=folder;activeFile=pathKey(folder.root,[...folder.path,target.name]);selected=folder.key;expanded.add(folder.key);persistWorkspace();renderRoots()}
+   }else if(as){noteFolder=null;activeFile=null;renderRoots()}
+   info();status(dirty?'Saved snapshot · newer edits unsaved':'Saved '+filename);return;
+  }
+  const url=URL.createObjectURL(new Blob([exportHTML()],{type:'text/html'}));const a=dom('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);status('Export downloaded; original file not overwritten');dirty=false;info();
+ }catch(e){if(e.name!=='AbortError')status('Save failed: '+e.message)}
+ finally{saveBusy=false}
+}
+
 const readData=f=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]||'');r.onerror=()=>reject(r.error);r.readAsDataURL(f)});
 async function embed(files,imagesOnly=false){if(!restore())return;for(const f of files){try{if(imagesOnly&&!raster.has(f.type)){status('Unsupported inline image; attach it as a file instead');continue}if(f.size>25*1024*1024&&!confirm('Embed '+f.name+' ('+Math.round(f.size/1024/1024)+' MB)? Large notes may be slow.'))continue;
  const id=crypto.randomUUID(),data=await readData(f);assets.set(id,{name:f.name,mime:f.type||'application/octet-stream',data});let e;if(raster.has(f.type)&&imagesOnly){e=dom('img');e.alt=f.name;e.src=blobURL(id)}else{e=dom('a',f.name);e.download=f.name;e.href=blobURL(id)}e.dataset.asset=id;
  insert(e.outerHTML+'<p><br></p>');status('Embedded '+f.name)
  }catch(e){status('Embed failed: '+e.message)}}info()}
 function treeButton(label,k,click){const b=dom('button');b.innerHTML=/^h[123]$/.test(k)?'<span class="command-symbol">'+k.toUpperCase()+'</span>':k==='paragraph'?'<span class="command-symbol">¶</span>':icon(k);b.append(dom('span',label));b.title=label;b.onclick=click;return b}
-function fileRow(name,open){const row=dom('div');row.className='tree-item';const btn=treeButton(name,'file',async()=>{const before=handle;await open();if(handle!==before||(!handle&&!dirty&&filename===name)){document.querySelectorAll('.tree-item [aria-current]').forEach(x=>x.removeAttribute('aria-current'));btn.setAttribute('aria-current','page');if(innerWidth<680)$('sidebar').hidden=true}});row.append(btn);return row}
-function dirRow(name,load,remove=null){const outer=dom('div'),row=dom('div'),children=dom('div');row.className='tree-item';children.className='children';children.hidden=true;let opened=false;
- const toggle=treeButton(name,'open',async()=>{children.hidden=!children.hidden;if(!children.hidden&&!opened){opened=true;children.replaceChildren(dom('p','Loading…'));try{const nodes=await load();children.replaceChildren(...nodes);if(!nodes.length)children.append(dom('p','No HTML files'));}catch(e){children.textContent='Cannot read folder: '+e.message;opened=false}}});
- toggle.setAttribute('aria-expanded','false');toggle.addEventListener('click',()=>toggle.setAttribute('aria-expanded',String(!children.hidden)));row.append(toggle);if(remove){const b=dom('button');b.className='remove';b.innerHTML=icon('close');b.title='Remove folder';b.setAttribute('aria-label','Remove folder');b.onclick=remove;row.append(b)}outer.append(row,children);return outer}
-async function listDirectory(h){const all=[];for await(const [,entry] of h.entries())all.push(entry);all.sort((a,b)=>(a.kind===b.kind?0:a.kind==='directory'?-1:1)||a.name.localeCompare(b.name));return all.filter(e=>e.kind==='directory'||/\.html?$/i.test(e.name)).map(e=>e.kind==='directory'?dirRow(e.name,()=>listDirectory(e)):fileRow(e.name,async()=>openFile(await e.getFile(),e)))}
-function browseFallback(files){const groups=new Map();for(const f of files){const parts=(f.webkitRelativePath||f.name).split('/');const root=parts.shift();if(!groups.has(root))groups.set(root,{dirs:new Map(),files:[]});if(!/\.html?$/i.test(f.name))continue;let n=groups.get(root);for(const part of parts.slice(0,-1)){if(!n.dirs.has(part))n.dirs.set(part,{dirs:new Map(),files:[]});n=n.dirs.get(part)}n.files.push(f)}
- const nodes=n=>[...n.dirs].sort(([a],[b])=>a.localeCompare(b)).map(([name,child])=>dirRow(name,async()=>nodes(child))).concat(n.files.sort((a,b)=>a.name.localeCompare(b.name)).map(f=>fileRow(f.name,()=>openFile(f))));
- for(const [name,n] of groups)roots.push({name,load:async()=>nodes(n)});renderRoots();status('Read-only folder selection; Save downloads a copy')}
-function renderRoots(){const host=$('folders');host.replaceChildren();if(!roots.length){const p=dom('p','Open a folder to browse HTML notes.');p.className='muted';host.append(p)}for(const root of roots)host.append(dirRow(root.name,root.load,()=>{roots=roots.filter(r=>r!==root);renderRoots()}));}
-async function pickFolder(){if(window.showDirectoryPicker){try{const h=await showDirectoryPicker({mode:'readwrite'});for(const r of roots)if(r.handle&&await h.isSameEntry(r.handle)){status('Folder already open');return;}roots.push({name:h.name,handle:h,load:()=>listDirectory(h)});renderRoots();status('Folder added: '+h.name)}catch(e){if(e.name!=='AbortError')status('Folder failed: '+e.message)}}else $('folderInput').click()}
-function newNote(){if(!safeToReplace())return;resetDocument('Untitled.html','<p><br></p>',new Map(),null);editor.focus();placeCaret(editor.firstElementChild,false);status('New note')}
+function persistWorkspace(){
+ if(!workspaceReady)return;
+ const data={roots:roots.filter(r=>r.handle).map(({id,handle})=>({id,handle})),expanded:[...expanded],selected};
+ persistQueue=persistQueue.catch(()=>{}).then(()=>writeWorkspace(data)).catch(e=>status('Could not remember folders: '+e.message));
+}
+function rootFor(id){return roots.find(r=>r.id===id)}
+function selectDir(dir){selected=dir.key;document.querySelectorAll('[data-folder-key]').forEach(b=>b.classList.toggle('folder-selected',b.dataset.folderKey===selected));$('saveLocation').textContent=dir.handle?dir.handle.name:'Read only';$('saveLocation').title=dir.handle?'Selected save folder: '+[rootFor(dir.root)?.name,...dir.path].filter(Boolean).join('/'):'Read-only folder';persistWorkspace()}
+async function ensureFolderAccess(dir,ask=false){
+ const root=rootFor(dir.root);if(!root?.handle)return false;
+ try{const ok=await permission(root.handle,'readwrite',ask);root.connected=ok;if(!ok&&ask)status('Folder access not granted. Reconnect to save.');return ok}catch(e){root.connected=false;status('Folder access failed: '+e.message);return false}
+}
+function fileRow(name,open,dir=null){
+ const row=dom('div');row.className='tree-item';
+ const key=dir?pathKey(dir.root,[...dir.path,name]):null;
+ const btn=treeButton(name,'file',async()=>{try{
+  if(!await open())return;
+  noteFolder=dir?.handle?dir:null;activeFile=key;
+  if(dir)selectDir(dir);
+  document.querySelectorAll('.tree-item [aria-current]').forEach(x=>x.removeAttribute('aria-current'));btn.setAttribute('aria-current','page');if(innerWidth<680)$('sidebar').hidden=true;
+ }catch(e){status('Open failed: '+e.message)}});
+ if(key&&key===activeFile)btn.setAttribute('aria-current','page');row.append(btn);return row;
+}
+function dirRow(dir,load,remove=null){
+ const {name,key}=dir,outer=dom('div'),row=dom('div'),children=dom('div');row.className='tree-item';children.className='children';children.hidden=true;let loaded=false,loading=false;
+ dirs.set(key,dir);
+ const toggle=treeButton(name,'open',async()=>{
+  selectDir(dir);
+  if(dir.handle&&!await ensureFolderAccess(dir,true)){renderRoots();return}
+  if(!children.hidden){children.hidden=true;expanded.delete(key);toggle.setAttribute('aria-expanded','false');persistWorkspace();return}
+  expanded.add(key);await reveal();persistWorkspace()
+ });
+ toggle.dataset.folderKey=key;toggle.classList.toggle('folder-selected',selected===key);toggle.setAttribute('aria-expanded','false');
+ async function reveal(){
+  if(dir.handle&&!await ensureFolderAccess(dir,false)){toggle.title='Click to reconnect '+name;return}
+  children.hidden=false;toggle.setAttribute('aria-expanded','true');if(loaded||loading)return;
+  loading=true;children.textContent='Loading…';
+  try{const nodes=await load();children.replaceChildren(...nodes);if(!nodes.length){const empty=dom('p','Empty folder');empty.className='muted';children.append(empty)}loaded=true}
+  catch(e){children.textContent='Cannot read folder: '+e.message}
+  finally{loading=false}
+ }
+ row.append(toggle);
+ if(dir.handle){
+  const newBtn=dom('button');newBtn.className='folder-add';newBtn.innerHTML=icon('new');newBtn.title='New note in '+name;newBtn.setAttribute('aria-label',newBtn.title);newBtn.onclick=()=>newNote(dir);row.append(newBtn);
+  if(!rootFor(dir.root)?.connected){const lock=dom('button');lock.className='folder-reconnect';lock.innerHTML=icon('refresh');lock.title='Reconnect '+name;lock.setAttribute('aria-label',lock.title);lock.onclick=async()=>{if(await ensureFolderAccess(dir,true)){expanded.add(key);selectDir(dir);renderRoots();status('Folder reconnected')}};row.append(lock)}
+ }
+ if(remove){const btn=dom('button');btn.className='remove';btn.innerHTML=icon('close');btn.title='Remove folder';btn.setAttribute('aria-label','Remove folder');btn.onclick=remove;row.append(btn)}
+ outer.append(row,children);if(expanded.has(key))void reveal();return outer;
+}
+function directory(root,path=[],h=root.handle){return {root:root.id,path,key:pathKey(root.id,path),name:path.at(-1)||root.name,handle:h}}
+async function listDirectory(dir){
+ const root=rootFor(dir.root),all=[];for await(const [,entry] of dir.handle.entries())all.push(entry);
+ all.sort((a,b)=>(a.kind===b.kind?0:a.kind==='directory'?-1:1)||a.name.localeCompare(b.name));
+ return all.filter(e=>e.kind==='directory'||/\.html?$/i.test(e.name)).map(e=>{
+  if(e.kind==='directory'){const child=directory(root,[...dir.path,e.name],e);return dirRow(child,()=>listDirectory(child))}
+  return fileRow(e.name,async()=>openFile(await e.getFile(),e),dir)
+ });
+}
+function browseFallback(files){
+ const groups=new Map();for(const f of files){const parts=(f.webkitRelativePath||f.name).split('/'),name=parts.shift();if(!groups.has(name))groups.set(name,{dirs:new Map(),files:[]});if(!/\.html?$/i.test(f.name))continue;let n=groups.get(name);for(const part of parts.slice(0,-1)){if(!n.dirs.has(part))n.dirs.set(part,{dirs:new Map(),files:[]});n=n.dirs.get(part)}n.files.push(f)}
+ for(const [name,n] of groups){const root={id:crypto.randomUUID(),name,handle:null};const nodes=(node,path=[])=>{const dir=directory(root,path,null);return [...node.dirs].sort(([a],[b])=>a.localeCompare(b)).map(([name,child])=>{const d=directory(root,[...path,name],null);return dirRow(d,async()=>nodes(child,d.path))}).concat(node.files.sort((a,b)=>a.name.localeCompare(b.name)).map(f=>fileRow(f.name,()=>openFile(f),dir)))};
+ root.load=()=>nodes(n);roots.push(root);expanded.add(pathKey(root.id))}
+ renderRoots();status('Read-only folder selection; Save downloads a copy')
+}
+function removeRoot(root){
+ roots=roots.filter(r=>r!==root);for(const k of expanded)if(JSON.parse(k)[0]===root.id)expanded.delete(k);
+ if(selected&&JSON.parse(selected)[0]===root.id)selected=null;
+ if(noteFolder?.root===root.id)noteFolder=null;
+ if(activeFile&&JSON.parse(activeFile)[0]===root.id)activeFile=null;
+ persistWorkspace();renderRoots();
+}
+function renderRoots(){
+ const host=$('folders'),scroll=host.scrollTop;host.replaceChildren();dirs=new Map();
+ if(!roots.length){const p=dom('p','Open a folder to browse HTML notes.');p.className='muted';host.append(p)}
+ for(const root of roots){const d=directory(root);host.append(dirRow(d,root.handle?()=>listDirectory(d):root.load,()=>removeRoot(root)))}
+ host.scrollTop=scroll;
+ if(!selected){$('saveLocation').textContent='No folder';$('saveLocation').title='Select a folder to save new notes there'}
+}
+async function pickFolder(){
+ if(!workspaceReady){status('Folder workspace is loading');return}
+ if(!window.showDirectoryPicker){$('folderInput').click();return}
+ try{
+  const h=await showDirectoryPicker({mode:'readwrite'});
+  let root=null;for(const r of roots)if(r.handle&&await h.isSameEntry(r.handle)){root=r;break}
+  if(!root){root={id:crypto.randomUUID(),name:h.name,handle:h,connected:true};roots.push(root)}else{root.handle=h;root.connected=true}
+  const d=directory(root);expanded.add(d.key);selectDir(d);renderRoots();status('Folder ready: '+h.name);
+ }catch(e){if(e.name!=='AbortError')status('Folder failed: '+e.message)}
+}
+async function restoreWorkspace(){
+ try{
+  const data=await readWorkspace();expanded=new Set(data.expanded||[]);selected=data.selected||null;
+  for(const r of data.roots||[]){if(!r.handle||r.handle.kind!=='directory')continue;let connected=false;try{connected=await permission(r.handle,'readwrite',false)}catch{}roots.push({id:r.id,name:r.handle.name,handle:r.handle,connected})}
+  if(selected&&!roots.some(r=>r.id===JSON.parse(selected)[0]))selected=null;
+  if(selected){const [id,...path]=JSON.parse(selected);$('saveLocation').textContent=path.at(-1)||rootFor(id)?.name||'No folder';$('saveLocation').title='Selected folder';}
+  if(roots.length)status(roots.some(r=>!r.connected)?'Remembered folders · click reconnect where needed':'Remembered folders restored');
+ }catch(e){status('Folder preferences unavailable: '+e.message)}
+ finally{workspaceReady=true;renderRoots()}
+}
+async function newNote(dir=dirs.get(selected)||null){
+ if(!safeToReplace())return;
+ if(!dir&&selected){status('Select or reconnect the destination folder first');return}
+ if(dir?.handle){
+  if(!await ensureFolderAccess(dir,true))return;
+  const input=prompt('New note in '+dir.name,'Untitled.html');if(input===null)return;
+  let name;try{name=noteName(input)}catch(e){status(e.message);return}
+  // Draft is associated with this directory; no empty file is created until Save.
+  resetDocument(name,'<p><br></p>',new Map(),null);noteFolder=dir;selectDir(dir);expanded.add(dir.key);dirty=true;info();status('New note in '+dir.name+' · Ctrl+S to create file');
+ }else{resetDocument('Untitled.html','<p><br></p>',new Map(),null);status('New note · choose location on save')}
+ renderRoots();editor.focus();placeCaret(editor.firstElementChild,false);
+}
+
 function setLink(){if(!restore())return;const selected=getSelection()?.toString();const url=prompt('Link URL','https://');if(!url||!safeLink(url))return;restore();if(selected)execute('createLink',url);else insert('<a href="'+escapeHTML(url)+'">'+escapeHTML(url)+'</a>')}
 function insertTable(){const n=3,rows=2,before=new Set(editor.querySelectorAll('table'));insert('<table><thead><tr>'+Array.from({length:n},(_,i)=>'<th>Heading '+(i+1)+'</th>').join('')+'</tr></thead><tbody>'+Array.from({length:rows},()=>'<tr>'+'<td><br></td>'.repeat(n)+'</tr>').join('')+'</tbody></table><p><br></p>');const table=[...editor.querySelectorAll('table')].find(t=>!before.has(t));if(table?.rows[0]?.cells[0])placeCaret(table.rows[0].cells[0])}
 function addRow(){if(!restore())return;const sel=getSelection()?.anchorNode;const row=(sel?.nodeType===1?sel:sel?.parentElement)?.closest('tr');if(!row||!editor.contains(row)){status('Place cursor inside a table first');return;}const next=dom('tr');for(const cell of row.cells){const td=dom('td');td.append(dom('br'));next.append(td)}if(row.parentElement.tagName==='THEAD'){const table=row.closest('table');(table.tBodies[0]||table.createTBody()).prepend(next)}else row.after(next);placeCaret(next.cells[0]);changed()}
@@ -285,4 +418,5 @@ window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.return
 if(innerWidth<680)$('sidebar').hidden=true;
 info();
 updateFormatting();
+void restoreWorkspace();
 if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>status('Offline shell unavailable'));
