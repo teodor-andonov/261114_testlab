@@ -105,7 +105,7 @@ function importDocument(text,name,newHandle){
  status(note?'Opened local note':'Imported HTML as editable content; scripts, styling and remote images removed');
 }
 async function openFile(file,newHandle=null){if(saveBusy||!safeToReplace())return false;try{importDocument(await file.text(),file.name,newHandle);return true}catch(e){status('Open failed: '+e.message);return false}}
-async function pickOpen(){if(window.showOpenFilePicker){try{const [h]=await showOpenFilePicker({types:[{description:'HTML notes',accept:{'text/html':['.html','.htm']}}]});if(h)await openFile(await h.getFile(),h)}catch(e){if(e.name!=='AbortError')status('Open failed: '+e.message)}}else $('openInput').click()}
+async function pickOpen(){if(window.showOpenFilePicker){try{const [h]=await showOpenFilePicker({types:[{description:'HTML notes',accept:{'text/html':['.html','.htm']}}]});if(h&&await openFile(await h.getFile(),h))renderRoots()}catch(e){if(e.name!=='AbortError')status('Open failed: '+e.message)}}else $('openInput').click()}
 function viewerResolve(){
  const rasterTypes=new Set(['image/png','image/jpeg','image/gif','image/webp','image/avif','image/bmp','image/x-icon','image/vnd.microsoft.icon']);
  const records=JSON.parse(document.getElementById('html-notes-assets').textContent);
@@ -135,8 +135,9 @@ async function save(as=false){
  saveBusy=true;const docRevision=documentRevision;
  try{
   let target=as?null:handle,folder=noteFolder||dirs.get(selected)||null;
+  if(!target&&!as&&selected&&!folder){status('Select or reconnect the destination folder first');return}
   if(!target&&!as&&folder?.handle){
-   const input=filename==='Untitled.html'?prompt('Save note in '+folder.handle.name,filename):filename;
+   const input=!noteFolder&&filename==='Untitled.html'?prompt('Save note in '+folder.handle.name,filename):filename;
    if(input===null)return;
    const name=noteName(input);
    if(!await ensureFolderAccess(folder,true))return;
@@ -147,7 +148,7 @@ async function save(as=false){
    const options={suggestedName:filename,types:[{description:'HTML note',accept:{'text/html':['.html','.htm']}}]};
    if(folder?.handle)options.startIn=folder.handle;
    try{target=await showSaveFilePicker(options)}catch(e){if(e.name!=='TypeError')throw e;delete options.startIn;target=await showSaveFilePicker(options)}
-   if(as)folder=null;
+   // Resolve the chosen file against the selected directory after writing.
   }
   if(target){
    if(!await permission(target,'readwrite',true))throw new Error('Write permission denied. Reconnect the folder or use Save As.');
@@ -157,7 +158,7 @@ async function save(as=false){
    handle=target;filename=target.name;dirty=editRevision!==revision;
    if(folder?.handle){
     let belongs=false;try{const path=await folder.handle.resolve(target);belongs=Array.isArray(path)&&path.length===1}catch{}
-    if(belongs){noteFolder=folder;activeFile=pathKey(folder.root,[...folder.path,target.name]);selected=folder.key;expanded.add(folder.key);persistWorkspace();renderRoots()}
+    if(belongs){noteFolder=folder;activeFile=pathKey(folder.root,[...folder.path,target.name]);selected=folder.key;expanded.add(folder.key);persistWorkspace();renderRoots()}else if(as){noteFolder=null;activeFile=null;renderRoots()}
    }else if(as){noteFolder=null;activeFile=null;renderRoots()}
    info();status(dirty?'Saved snapshot · newer edits unsaved':'Saved '+filename);return;
   }
@@ -174,7 +175,7 @@ async function embed(files,imagesOnly=false){if(!restore())return;for(const f of
 function treeButton(label,k,click){const b=dom('button');b.innerHTML=/^h[123]$/.test(k)?'<span class="command-symbol">'+k.toUpperCase()+'</span>':k==='paragraph'?'<span class="command-symbol">¶</span>':icon(k);b.append(dom('span',label));b.title=label;b.onclick=click;return b}
 function persistWorkspace(){
  if(!workspaceReady)return;
- const data={roots:roots.filter(r=>r.handle).map(({id,handle})=>({id,handle})),expanded:[...expanded],selected};
+ const savedRoots=roots.filter(r=>r.handle),ids=new Set(savedRoots.map(r=>r.id));const data={roots:savedRoots.map(({id,handle})=>({id,handle})),expanded:[...expanded].filter(k=>ids.has(JSON.parse(k)[0])),selected:selected&&ids.has(JSON.parse(selected)[0])?selected:null};
  persistQueue=persistQueue.catch(()=>{}).then(()=>writeWorkspace(data)).catch(e=>status('Could not remember folders: '+e.message));
 }
 function rootFor(id){return roots.find(r=>r.id===id)}
@@ -200,6 +201,7 @@ function dirRow(dir,load,remove=null){
  const toggle=treeButton(name,'open',async()=>{
   selectDir(dir);
   if(dir.handle&&!await ensureFolderAccess(dir,true)){renderRoots();return}
+  row.querySelector('.folder-reconnect')?.remove();
   if(!children.hidden){children.hidden=true;expanded.delete(key);toggle.setAttribute('aria-expanded','false');persistWorkspace();return}
   expanded.add(key);await reveal();persistWorkspace()
  });
@@ -264,7 +266,7 @@ async function restoreWorkspace(){
   const data=await readWorkspace();expanded=new Set(data.expanded||[]);selected=data.selected||null;
   for(const r of data.roots||[]){if(!r.handle||r.handle.kind!=='directory')continue;let connected=false;try{connected=await permission(r.handle,'readwrite',false)}catch{}roots.push({id:r.id,name:r.handle.name,handle:r.handle,connected})}
   if(selected&&!roots.some(r=>r.id===JSON.parse(selected)[0]))selected=null;
-  if(selected){const [id,...path]=JSON.parse(selected);$('saveLocation').textContent=path.at(-1)||rootFor(id)?.name||'No folder';$('saveLocation').title='Selected folder';}
+  if(selected){const [id,...path]=JSON.parse(selected);$('saveLocation').textContent=path.at(-1)||rootFor(id)?.name||'No folder';$('saveLocation').title='Selected folder';for(let i=0;i<=path.length;i++)expanded.add(pathKey(id,path.slice(0,i)));}
   if(roots.length)status(roots.some(r=>!r.connected)?'Remembered folders · click reconnect where needed':'Remembered folders restored');
  }catch(e){status('Folder preferences unavailable: '+e.message)}
  finally{workspaceReady=true;renderRoots()}
@@ -286,7 +288,7 @@ function setLink(){if(!restore())return;const selected=getSelection()?.toString(
 function insertTable(){const n=3,rows=2,before=new Set(editor.querySelectorAll('table'));insert('<table><thead><tr>'+Array.from({length:n},(_,i)=>'<th>Heading '+(i+1)+'</th>').join('')+'</tr></thead><tbody>'+Array.from({length:rows},()=>'<tr>'+'<td><br></td>'.repeat(n)+'</tr>').join('')+'</tbody></table><p><br></p>');const table=[...editor.querySelectorAll('table')].find(t=>!before.has(t));if(table?.rows[0]?.cells[0])placeCaret(table.rows[0].cells[0])}
 function addRow(){if(!restore())return;const sel=getSelection()?.anchorNode;const row=(sel?.nodeType===1?sel:sel?.parentElement)?.closest('tr');if(!row||!editor.contains(row)){status('Place cursor inside a table first');return;}const next=dom('tr');for(const cell of row.cells){const td=dom('td');td.append(dom('br'));next.append(td)}if(row.parentElement.tagName==='THEAD'){const table=row.closest('table');(table.tBodies[0]||table.createTBody()).prepend(next)}else row.after(next);placeCaret(next.cells[0]);changed()}
 let imagePick=false;function pickAssets(images){if(sourceMode&&!restore())return;remember();imagePick=images;$('assetInput').accept=images?'image/png,image/jpeg,image/gif,image/webp,image/avif,image/bmp':'';$('assetInput').click()}
-const actions={new:['New note',newNote],open:['Open HTML file',pickOpen],folder:['Add folder',pickFolder],refresh:['Refresh folders',()=>{renderRoots();status('Folders refreshed')}],save:['Save',()=>save()],saveAs:['Save as',()=>save(true)],sidebar:['Toggle sidebar',()=>$('sidebar').hidden=!$('sidebar').hidden],source:['Toggle body source',()=>setSource(!sourceMode)],customBlock:['Custom HTML block',()=>openBlockDialog()],formatSource:['Format HTML source',formatSource],commands:['Command palette',()=>showCommands()],insert:['Insert block',()=>{if(!restore())return;const s=getSelection(),node=s.anchorNode,prior=node?.nodeType===3?node.data.slice(0,s.anchorOffset):'';execute('insertText',prior&&!/\s$/.test(prior)?' /':'/');refreshSlash()}],paragraph:['Paragraph',()=>execute('formatBlock','p')],h1:['Heading 1',()=>execute('formatBlock','h1')],h2:['Heading 2',()=>execute('formatBlock','h2')],h3:['Heading 3',()=>execute('formatBlock','h3')],bold:['Bold',()=>execute('bold')],italic:['Italic',()=>execute('italic')],strike:['Strikethrough',()=>execute('strikeThrough')],code:['Code block',()=>execute('formatBlock','pre')],bullet:['Bullet list',()=>execute('insertUnorderedList')],number:['Numbered list',()=>execute('insertOrderedList')],task:['Task list',makeTask],quote:['Blockquote',()=>execute('formatBlock','blockquote')],rule:['Divider',()=>execute('insertHorizontalRule')],table:['Insert table',insertTable],row:['Add table row',addRow],link:['Insert link',setLink],image:['Embed image',()=>pickAssets(true)],attach:['Embed attachment',()=>pickAssets(false)],undo:['Undo',()=>execute('undo')],redo:['Redo',()=>execute('redo')]};
+const actions={new:['New note',()=>newNote()],open:['Open HTML file',pickOpen],folder:['Add folder',pickFolder],refresh:['Refresh folders',()=>{renderRoots();status('Folders refreshed')}],save:['Save',()=>save()],saveAs:['Save as',()=>save(true)],sidebar:['Toggle sidebar',()=>$('sidebar').hidden=!$('sidebar').hidden],source:['Toggle body source',()=>setSource(!sourceMode)],customBlock:['Custom HTML block',()=>openBlockDialog()],formatSource:['Format HTML source',formatSource],commands:['Command palette',()=>showCommands()],insert:['Insert block',()=>{if(!restore())return;const s=getSelection(),node=s.anchorNode,prior=node?.nodeType===3?node.data.slice(0,s.anchorOffset):'';execute('insertText',prior&&!/\s$/.test(prior)?' /':'/');refreshSlash()}],paragraph:['Paragraph',()=>execute('formatBlock','p')],h1:['Heading 1',()=>execute('formatBlock','h1')],h2:['Heading 2',()=>execute('formatBlock','h2')],h3:['Heading 3',()=>execute('formatBlock','h3')],bold:['Bold',()=>execute('bold')],italic:['Italic',()=>execute('italic')],strike:['Strikethrough',()=>execute('strikeThrough')],code:['Code block',()=>execute('formatBlock','pre')],bullet:['Bullet list',()=>execute('insertUnorderedList')],number:['Numbered list',()=>execute('insertOrderedList')],task:['Task list',makeTask],quote:['Blockquote',()=>execute('formatBlock','blockquote')],rule:['Divider',()=>execute('insertHorizontalRule')],table:['Insert table',insertTable],row:['Add table row',addRow],link:['Insert link',setLink],image:['Embed image',()=>pickAssets(true)],attach:['Embed attachment',()=>pickAssets(false)],undo:['Undo',()=>execute('undo')],redo:['Redo',()=>execute('redo')]};
 
 const slashMenu=$('slashMenu'),slashList=$('slashList');
 const slashTools=[
@@ -410,8 +412,8 @@ editor.addEventListener('keydown',e=>{
   const space=document.createTextNode(' ');next.append(cb,space,tail);li.after(next);const caret=document.createRange();caret.setStart(space,1);caret.collapse(true);s.removeAllRanges();s.addRange(caret);remember();changed();return
  }
 });
-document.addEventListener('keydown',e=>{if(!(e.ctrlKey||e.metaKey))return;const k=e.key.toLowerCase();if(sourceMode&&e.shiftKey&&k==='f'){e.preventDefault();formatSource()}else if(k==='s'){e.preventDefault();save(e.shiftKey)}else if(k==='k'){e.preventDefault();if(palette.open)palette.close();else showCommands()}else if(k==='o'){e.preventDefault();pickOpen()}});
-$('openInput').onchange=async e=>{const f=e.target.files[0];if(f)await openFile(f);e.target.value=''};
+document.addEventListener('keydown',e=>{if(!(e.ctrlKey||e.metaKey))return;const k=e.key.toLowerCase();if(sourceMode&&e.shiftKey&&k==='f'){e.preventDefault();formatSource()}else if(k==='s'){e.preventDefault();save(e.shiftKey)}else if(k==='k'){e.preventDefault();if(palette.open)palette.close();else showCommands()}else if(k==='o'){e.preventDefault();pickOpen()}else if(k==='n'){e.preventDefault();newNote()}});
+$('openInput').onchange=async e=>{const f=e.target.files[0];if(f&&await openFile(f))renderRoots();e.target.value=''};
 $('folderInput').onchange=e=>{browseFallback([...e.target.files]);e.target.value=''};
 $('assetInput').onchange=async e=>{await embed([...e.target.files],imagePick);e.target.value=''};
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
