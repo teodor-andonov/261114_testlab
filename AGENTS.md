@@ -19,8 +19,10 @@ Independent experiments published as static applications through GitHub Pages. E
 - Before work, check for uncommitted work and commit it first when present. GitHub-API-only changes start from a committed branch, so there is no local worktree to reconcile.
 - Commit the completed changes after work. One commit is normally enough; use multiple logical commits for larger work or when connector operations require it.
 - Keep existing experiments and gallery functionality intact.
-- Work on a development branch, squash-merge after verification, and delete merged development branches.
-- Verify syntax, builds and published deployment when possible; report anything that could not be tested.
+- Work on a development branch and squash-merge completed updates into `main` automatically, without asking the user for separate merge or publish approval. Delete merged development branches when the available tools permit it.
+- Run fast automated checks (syntax, unit tests and production build) when available. Fix known failures before merging; do not wait for pending browser smoke tests or require manual browser verification as a release gate. Keep existing automated browser coverage and report its status.
+- Publishing is part of completing an update: merging into `main` triggers the GitHub Pages deployment. Check its status when possible and retry failed deployments where appropriate. Report explicitly if publication is still pending or failed.
+- The user performs manual browser and visual acceptance testing against the published prototype. Use their feedback for the next update; do not leave completed work in an open PR merely awaiting manual testing.
 
 ## Prototype versions and release reporting
 - Give each independently deployed prototype its own explicit SemVer prerelease, e.g. `0.2.0-alpha.1`. This is **an app version**, not the gallery's version. Bump it for user-facing releases. Store the version in the prototype's `package.json` (or `prototype.json` when not using npm).
