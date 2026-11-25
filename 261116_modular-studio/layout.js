@@ -1,6 +1,6 @@
 import {
   PANEL_IDS, defaultLayout, isValidLayout, findStack, stackContaining,
-  movePanel, activatePanel, cycleTab, allStacks,
+  movePanel, allStacks,
 } from "./layout-core.js";
 import { zoneAt, gapInsertion } from "./dock-target.js";
 
@@ -33,6 +33,7 @@ export function createWorkspace(host, panels, onFocus = () => {}) {
     highlighted = null;
   }
   function highlight(node, zone) {
+    if (highlighted === node && node.dataset.dropZone === zone) return;
     if (highlighted !== node) clearHighlight();
     highlighted = node;
     node.classList.add("drop-target");
@@ -104,7 +105,9 @@ export function createWorkspace(host, panels, onFocus = () => {}) {
     root.dataset.stack = node.id;
     root.setAttribute("aria-label", "Panel box");
     root.addEventListener("pointerdown", () => focus(node.id));
+    root.addEventListener("focusin", () => focus(node.id));
     const header = el("div", "dock-head");
+    header.tabIndex = -1;
     const tabs = el("div", "dock-tabs");
     tabs.setAttribute("role", "tablist");
     for (const panel of node.tabs) {
@@ -115,9 +118,8 @@ export function createWorkspace(host, panels, onFocus = () => {}) {
       button.setAttribute("aria-selected", String(node.active === panel));
       button.title = "Drag to dock; click to select";
       button.addEventListener("click", () => {
-        layout = activatePanel(layout, panel);
-        focus(node.id);
-        persist(); render();
+        updateTab(node.id, panel);
+        button.focus({ preventScroll: true });
       });
       button.addEventListener("dragstart", event => {
         draggingPanel = panel;
@@ -171,8 +173,8 @@ export function createWorkspace(host, panels, onFocus = () => {}) {
     clearHighlight();
     if (maximizedId && !findStack(layout, maximizedId)) maximizedId = null;
     if (!findStack(layout, focusedId)) focusedId = allStacks(layout)[0].id;
-    host.classList.toggle("is-maximized", Boolean(maximizedId));
-    host.replaceChildren(renderNode(maximizedId ? findStack(layout, maximizedId) : layout));
+    host.replaceChildren(renderNode(layout));
+    syncPresentation();
     focus(maximizedId || focusedId);
   }
   function dock(panel, stackId, zone) {
@@ -184,17 +186,47 @@ export function createWorkspace(host, panels, onFocus = () => {}) {
       persist(); render();
     }
   }
+  function syncPresentation() {
+    host.classList.toggle("is-maximized", Boolean(maximizedId));
+    for (const root of host.querySelectorAll(".dock-stack")) {
+      const isMax = maximizedId === root.dataset.stack;
+      root.classList.toggle("maximized", isMax);
+      root.inert = Boolean(maximizedId && !isMax);
+      root.querySelector(".expand-btn").textContent = isMax ? "↙" : "⛶";
+    }
+    document.dispatchEvent(new Event("workspace:presentation"));
+  }
+  function updateTab(id, panel) {
+    const stack = findStack(layout, id);
+    if (!stack || !stack.tabs.includes(panel)) return;
+    if (stack.active !== panel) {
+      stack.active = panel;
+      const root = [...host.querySelectorAll(".dock-stack")].find(n => n.dataset.stack === id);
+      if (root) {
+        root.querySelector(".dock-content").replaceChildren(panels[panel]);
+        [...root.querySelectorAll(".dock-tab")].forEach((tab, i) => {
+          const active = stack.tabs[i] === panel;
+          tab.classList.toggle("active", active);
+          tab.setAttribute("aria-selected", String(active));
+        });
+      }
+      persist();
+      document.dispatchEvent(new Event("workspace:presentation"));
+    }
+    focus(id);
+  }
   function toggleMaximize() {
     maximizedId = maximizedId === focusedId ? null : focusedId;
-    render();
+    syncPresentation();
   }
   function activate(panel) {
     const target = stackContaining(layout, panel);
     if (!target) return;
-    layout = activatePanel(layout, panel);
-    if (maximizedId && maximizedId !== target.id) maximizedId = null;
-    focusedId = target.id;
-    persist(); render();
+    if (maximizedId && maximizedId !== target.id) {
+      maximizedId = null;
+      syncPresentation();
+    }
+    updateTab(target.id, panel);
   }
   function reset() {
     layout = defaultLayout();
@@ -203,21 +235,26 @@ export function createWorkspace(host, panels, onFocus = () => {}) {
   }
   document.addEventListener("keydown", event => {
     if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey) return;
-    if (editable(event.target)) return;
-    if (event.key === "Tab") {
+    if (document.querySelector("dialog[open]") || editable(event.target) || event.isComposing) return;
+    if (event.key === "Tab" && (!event.target.closest?.("button, a") || event.target.closest?.(".dock-tab"))) {
       const stack = findStack(layout, focusedId);
       if (stack && stack.tabs.length > 1) {
         event.preventDefault();
-        layout = cycleTab(layout, focusedId, event.shiftKey ? -1 : 1);
-        persist(); render();
+        const next = (stack.tabs.indexOf(stack.active) + (event.shiftKey ? -1 : 1) + stack.tabs.length) % stack.tabs.length;
+        updateTab(focusedId, stack.tabs[next]);
+        host.querySelector(".dock-stack.focused .dock-tab.active")?.focus({ preventScroll: true });
       }
     } else if (event.code === "Space" && !event.repeat &&
-               !event.target.closest?.("dialog, [role='dialog']")) {
+               (!event.target.closest?.("button, a") || event.target.closest?.(".dock-tab"))) {
       event.preventDefault();
       toggleMaximize();
     } else if (event.key === "Escape" && maximizedId) {
-      maximizedId = null; render();
+      event.preventDefault();
+      maximizedId = null; syncPresentation();
     }
+  });
+  host.addEventListener("dragleave", event => {
+    if (!host.contains(event.relatedTarget)) clearHighlight();
   });
   render();
   return {

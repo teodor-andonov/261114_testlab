@@ -2,12 +2,13 @@
   "name": "testlab-modular-studio",
   "private": true,
   "type": "module",
-  "version": "0.2.0-alpha.1",
+  "version": "0.3.0-alpha.1",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "replicad": "1.2.1",
@@ -23,6 +24,7 @@
     "acorn": "^8.15.0"
   },
   "devDependencies": {
-    "vite": "8.2.1"
+    "vite": "8.2.1",
+    "@playwright/test": "1.58.2"
   }
 }

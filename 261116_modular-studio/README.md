@@ -1,6 +1,6 @@
 # Modular Studio — Testlab prototype
 
-**Version:** 0.2.0-alpha.1. Browser-only, static Vite experiment: a small composition shell inspired by the *ideas* discussed around Patchwork and the flexibility of Obsidian. Built independently, not a Patchwork fork.
+**Version:** 0.3.0-alpha.1. Browser-only, static Vite experiment: a small composition shell inspired by the *ideas* discussed around Patchwork and the flexibility of Obsidian. Built independently, not a Patchwork fork.
 
 ## Architecture
 
@@ -66,3 +66,12 @@ npm run dev
 ```
 
 Tests cover the layout tree, drop-target classification, parameter-source edits, and geometry adapter conversion contracts. The Testlab deployment workflow builds this prototype before assembling the gallery. Gallery Home and theme controls are injected by the Testlab build.
+
+
+## Stability and demos
+
+The formatter retains its DOM elements while conversion status changes. Tabs update only the selected dock content; maximizing uses presentation CSS rather than tearing down the entire layout. The viewer renders on demand, pauses behind the command palette, and resizes only when its actual dimensions change. A serialized worker queue collapses obsolete builds and previews while preserving already accepted file exports; repeated export clicks for the same revision are ignored. File names are captured at request time, and a worker crash allows the next Run to recreate the worker.
+
+The command palette lists six built-in examples: parametric pavilion, rounded block, parametric box, Boolean union + fillets, perforated facade panel and stepped tower. The box and Boolean/fillet scripts are copied from the independent Replicad Studio prototype.
+
+Run browser regression checks against the production Vite build with `npx playwright install chromium` and `npm run test:browser` after `npm run build`. These check modal/keyboard behavior, mount stability, demo execution with real WASM, and STEP export/download.

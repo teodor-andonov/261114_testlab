@@ -43,7 +43,7 @@ kbd { color: var(--quiet); border: 1px solid var(--line); border-radius: 4px; fo
 .utility-bar strong { color: var(--muted); font-weight: 600; padding-left: 8px; }
 .shortcut-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .footer { height: 27px; flex: 0 0 auto; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; padding: 0 17px; color: var(--quiet); letter-spacing: .05em; font-size: 9px; }
-.workspace { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; padding: 6px; }
+.workspace { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; padding: 6px; }
 .workspace.is-maximized { padding: 6px; }
 .dock-split { display: flex; flex: 1 1 0%; min-height: 0; min-width: 0; }
 .dock-split.horizontal { flex-direction: row; }
@@ -136,7 +136,7 @@ kbd { color: var(--quiet); border: 1px solid var(--line); border-radius: 4px; fo
 .horizontal > .split-grip.drop-target::after { top: 0; bottom: 0; left: 1px; right: 1px; }
 .vertical > .split-grip.drop-target::after { left: 0; right: 0; top: 1px; bottom: 1px; }
 .command-dialog { border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); color: var(--fg); padding: 0; width: min(540px, calc(100vw - 24px)); max-height: min(610px, 80dvh); box-shadow: 0 25px 80px #0008; }
-.command-dialog::backdrop { background: #0c0f12aa; backdrop-filter: blur(3px); }
+.command-dialog::backdrop { background: #0c0f12aa;  }
 .command-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px 5px; font-weight: 600; }
 .command-header button { background: transparent; border: 0; font-size: 22px; }
 #commandSearch { margin: 6px 14px 12px; width: calc(100% - 28px); padding: 11px; font-size: 14px; }
@@ -163,3 +163,20 @@ kbd { color: var(--quiet); border: 1px solid var(--line); border-radius: 4px; fo
   .workspace:not(.is-maximized) .split-grip { display: none; }
   .workspace.is-maximized > .dock-stack { flex: 1 1 auto; }
 }
+
+/* Preserve mounted panels when maximizing and restoring, including WebGL. */
+.workspace.is-maximized { position: relative; overflow: hidden; }
+.workspace.is-maximized .dock-stack:not(.maximized), .workspace.is-maximized .split-grip { visibility: hidden; }
+.workspace.is-maximized .dock-stack.maximized {
+  position: absolute; inset: 6px; z-index: 10; width: auto; height: auto;
+  flex: none; margin: 0; visibility: visible;
+}
+html, body { overflow: hidden; }
+.runner-root, .formatter-root, .params-root, .command-results { scrollbar-gutter: stable; overflow-anchor: none; }
+.format-row, .format-input, .format-note, .run-stats, .param-intro { flex-shrink: 0; }
+.format-row-actions { min-width: 72px; }
+.format-row-actions button[aria-disabled="true"] { opacity: .45; cursor: default; }
+.command-dialog { position: fixed; inset: 0; margin: auto; height: fit-content; overflow: hidden; }
+.command-results { height: min(350px, 48dvh); }
+.top-actions { flex: 1 1 auto; justify-content: flex-end; }
+#status { flex: 1 1 auto; min-width: 0; }

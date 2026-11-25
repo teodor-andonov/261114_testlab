@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   test-and-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,3 +24,9 @@ jobs:
           npm install --no-audit --no-fund
           npm test
           npm run build
+      - name: Install Chromium for browser regression checks
+        working-directory: 261116_modular-studio
+        run: npx playwright install --with-deps chromium
+      - name: Smoke test production workspace in Chromium
+        working-directory: 261116_modular-studio
+        run: npm run test:browser

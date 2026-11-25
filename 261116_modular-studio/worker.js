@@ -7,6 +7,13 @@ import {
 
 let initialization;
 let geometryDocument = null;
+function releaseGeometry() {
+  const shapes = new Set(geometryDocument?.items.map(item => item.shape) || []);
+  geometryDocument = null;
+  for (const shape of shapes) {
+    try { shape.delete?.(); } catch { /* Already disposed by user script. */ }
+  }
+}
 const init = () => (initialization ||= initOpenCascade({ locateFile: () => wasmURL })
   .then(oc => { replicad.setOC(oc); return oc; }));
 
@@ -39,7 +46,7 @@ self.onmessage = async ({ data }) => {
   try {
     await init();
     if (type === "build") {
-      geometryDocument = null;
+      releaseGeometry();
       const { main, defaults } = compile(data.source, logs);
       const outputs = await main(replicad, defaults);
       const list = Array.isArray(outputs) ? outputs : [outputs];

@@ -11,6 +11,7 @@ import { listConversions, SOURCE_FORMAT } from "./geometry-formats.js";
 import { createWorkspace } from "./layout.js";
 import { EXAMPLES } from "./examples.js";
 import { editParameter } from "./param-source.js";
+import { createJobQueue } from "./job-queue.js";
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -67,6 +68,8 @@ function download(blob, name) {
   const href = URL.createObjectURL(blob);
   const link = el("a");
   link.href = href; link.download = name;
+  link.tabIndex = -1;
+  link.style.display = "none";
   document.body.append(link);
   link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(href), 20000);
@@ -113,9 +116,10 @@ paramRoot.append(paramIntro, paramList);
 panels.parameters = paramRoot;
 
 const workspace = createWorkspace($("workspace"), panels, stack => {
-  focusText.textContent = stack.active === "parameters" ? "Parametric Controls" :
+  const name = stack.active === "parameters" ? "Parametric Controls" :
     stack.active === "runner" ? "Replicad Runner" :
     stack.active[0].toUpperCase() + stack.active.slice(1);
+  if (focusText.textContent !== name) focusText.textContent = name;
 });
 
 const editorColor = new Compartment();
@@ -146,6 +150,7 @@ function sourceEdited() {
   built = false;
   lastBuildId = -1;
   clearTimeout(autoBuildTimer);
+  cancelStaleJobs();
   formatterInfo = null;
   formatStatuses.clear();
   renderFormatter();
@@ -168,7 +173,19 @@ window.addEventListener("testlab:themechange", event => {
 });
 
 // The runner produces data, never UI: a dedicated Web Worker owns OpenCascade.
-const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+let worker = null;
+const queue = createJobQueue(job => {
+  if (!worker) {
+    worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+    worker.addEventListener("message", onWorkerMessage);
+    worker.addEventListener("error", onWorkerError);
+    worker.addEventListener("messageerror", onWorkerError);
+  }
+  worker.postMessage(job);
+});
+function cancelStaleJobs() {
+  for (const job of queue.cancelStale()) pendingConversions.delete(job.id);
+}
 function runModel() {
   clearTimeout(autoBuildTimer);
   built = false;
@@ -180,7 +197,8 @@ function runModel() {
   setStatus("Building model…");
   runnerStats.textContent = "Computing geometry…";
   runLog.textContent = "Replicad worker is processing the current source.";
-  worker.postMessage({ type: "build", id, source: source() });
+  cancelStaleJobs();
+  queue.enqueue({ type: "build", id, source: source() });
 }
 function autoRun() {
   clearTimeout(autoBuildTimer);
@@ -191,25 +209,38 @@ function requestConversion(target) {
     setStatus("Build the current model before converting.", "error");
     return;
   }
+  if (target === "stl" && formatterInfo.count > 1) {
+    setStatus("STL supports one shape. Use STEP for assemblies.", "error");
+    return;
+  }
   if (!listConversions(formatterInfo.sourceFormat).some(item => item.target === target)) {
     setStatus("No conversion adapter for " + target, "error");
     return;
   }
+  if ([...pendingConversions.values()].some(job => job.buildId === lastBuildId && job.target === target)) return;
   const id = ++nextId;
-  pendingConversions.set(id, { buildId: lastBuildId, target });
+  pendingConversions.set(id, { buildId: lastBuildId, target, filename });
   formatStatuses.set(target, "Converting…");
   renderFormatter();
   if (target !== "viewer/mesh") setStatus("Converting geometry → " + target.toUpperCase() + "…");
-  worker.postMessage({ type: "convert", id, buildId: lastBuildId, target });
+  queue.enqueue({ type: "convert", id, buildId: lastBuildId, target });
 }
 function exportModel(format) {
   requestConversion(format);
 }
-worker.addEventListener("message", ({ data }) => {
+function onWorkerMessage({ data }) {
+  try { handleWorkerMessage(data); }
+  finally { queue.complete(data.id); }
+}
+function handleWorkerMessage(data) {
   if (data.type === "error" && data.operation === "convert") {
     const request = pendingConversions.get(data.id);
     pendingConversions.delete(data.id);
-    if (!request || request.buildId !== lastBuildId) return;
+    if (!request) return;
+    if (request.buildId !== lastBuildId) {
+      if (request.target !== "viewer/mesh") setStatus("Export failed: " + data.message, "error");
+      return;
+    }
     formatStatuses.set(request.target, "Failed");
     renderFormatter();
     setStatus("Formatter: " + data.message, "error");
@@ -234,7 +265,9 @@ worker.addEventListener("message", ({ data }) => {
   if (data.type === "converted") {
     const request = pendingConversions.get(data.id);
     pendingConversions.delete(data.id);
-    if (!request || request.buildId !== lastBuildId || data.buildId !== lastBuildId) return;
+    if (!request || data.buildId !== request.buildId) return;
+    const current = request.buildId === lastBuildId;
+    if (request.target === "viewer/mesh" && !current) return;
     try {
       if (request.target === "viewer/mesh") {
         drawGeometry(data.meshes);
@@ -244,16 +277,18 @@ worker.addEventListener("message", ({ data }) => {
         publish("geometry:preview", { count: data.meshes.length });
         formatStatuses.set(request.target, "Displayed");
       } else {
-        const exportName = filename.replace(/\.js$/i, data.extension);
+        const exportName = request.filename.replace(/\.js$/i, data.extension);
         download(new Blob([data.bytes], { type: "application/octet-stream" }), exportName);
-        formatStatuses.set(request.target, "Exported");
-        setStatus(request.target.toUpperCase() + " exported", "ok");
+        if (current) {
+          formatStatuses.set(request.target, "Exported");
+          setStatus(request.target.toUpperCase() + " exported", "ok");
+        }
       }
     } catch (error) {
-      formatStatuses.set(request.target, "Failed");
+      if (current) formatStatuses.set(request.target, "Failed");
       setStatus("Formatter: " + error.message, "error");
     }
-    renderFormatter();
+    if (current) renderFormatter();
     return;
   }
   if (data.type !== "built" || data.id !== lastBuildId) return;
@@ -274,11 +309,19 @@ worker.addEventListener("message", ({ data }) => {
   setStatus("Formatting viewer geometry…");
   publish("geometry:built", { count, duration: data.duration });
   requestConversion("viewer/mesh");
-});
-worker.addEventListener("error", event => {
-  setStatus("CAD worker crashed: " + event.message, "error");
+}
+function onWorkerError(event) {
+  worker?.terminate();
+  worker = null;
+  queue.reset();
+  pendingConversions.clear();
+  built = false;
+  formatterInfo = null;
+  formatStatuses.clear();
+  renderFormatter();
+  setStatus("CAD worker crashed: " + (event.message || "message could not be read") + ". Run to retry.", "error");
   runnerStats.textContent = "Worker error";
-});
+}
 runnerActions.append(button("▶ Run", runModel, "primary"));
 subscribe("status", ({ message, kind }) => {
   if (kind === "error" && !runLog.textContent.includes(message)) runLog.textContent += "\n" + message;
@@ -308,7 +351,7 @@ function parameterRow(name, value) {
     const slider = el("input", "param-slider");
     slider.type = "range";
     const span = Math.max(10, Math.abs(value) * 2);
-    slider.min = String(Math.min(0, Math.floor(value - span)));
+    slider.min = String(value >= 0 ? 0 : Math.floor(value - span));
     slider.max = String(Math.max(10, Math.ceil(value + span)));
     slider.step = Number.isInteger(value) ? "1" : "0.1";
     slider.value = String(value);
@@ -362,33 +405,49 @@ function renderParameters() {
 
 // Formatter is a processor with typed source → target geometry adapters.
 // The panel visualises the conversion graph and triggers export commands.
+// Mount the formatter controls once: status updates must not destroy the
+// focused button, scroll position, or accessibility tree during an export.
+const formatName = el("div", "format-input-name", SOURCE_FORMAT);
+const formatDetail = el("div", "format-input-detail");
+formatterInput.append(el("div", "format-kicker", "INPUT"), formatName, formatDetail);
+formatterOutputs.append(el("div", "format-kicker", "OUTPUT ADAPTERS"));
+const formatRows = new Map();
+for (const adapter of listConversions()) {
+  const row = el("div", "format-row");
+  const text = el("div", "format-row-text");
+  text.append(
+    el("div", "format-title", adapter.label),
+    el("div", "format-description", adapter.representation + " · " + adapter.fidelity),
+    el("div", "format-description", adapter.description),
+  );
+  const actions = el("div", "format-row-actions");
+  const state = el("span", "format-state");
+  const action = button(adapter.automatic ? "Refresh" : "Export ↓", () => {
+    if (action.getAttribute("aria-disabled") !== "true") requestConversion(adapter.target);
+  });
+  action.title = adapter.description;
+  action.dataset.target = adapter.target;
+  actions.append(state, action);
+  row.append(text, actions);
+  formatterOutputs.append(row);
+  formatRows.set(adapter.target, { row, state, action, adapter });
+}
 function renderFormatter() {
-  formatterInput.replaceChildren();
-  const label = el("div", "format-kicker", "INPUT");
-  const name = el("div", "format-input-name", formatterInfo?.sourceFormat || SOURCE_FORMAT);
-  const detail = el("div", "format-input-detail",
-    formatterInfo
-      ? formatterInfo.count + (formatterInfo.count === 1 ? " shape" : " shapes") + " · " + formatterInfo.units
-      : "Run a model to produce geometry");
-  formatterInput.append(label, name, detail);
-  formatterOutputs.replaceChildren(el("div", "format-kicker", "OUTPUT ADAPTERS"));
-  const adapters = listConversions(formatterInfo?.sourceFormat || SOURCE_FORMAT);
-  for (const adapter of adapters) {
-    const row = el("div", "format-row");
-    const text = el("div", "format-row-text");
-    const title = el("div", "format-title", adapter.label);
-    const description = el("div", "format-description", adapter.representation + " · " + adapter.fidelity);
-    const note = el("div", "format-description", adapter.description);
-    text.append(title, description, note);
-    const actions = el("div", "format-row-actions");
-    const state = el("span", "format-state", formatStatuses.get(adapter.target) || (adapter.automatic ? "Automatic" : "Ready"));
-    const action = button(adapter.automatic ? "Refresh" : "Export ↓",
-      () => requestConversion(adapter.target));
-    action.disabled = !built || !formatterInfo;
-    action.title = adapter.description;
-    actions.append(state, action);
-    row.append(text, actions);
-    formatterOutputs.append(row);
+  formatName.textContent = formatterInfo?.sourceFormat || SOURCE_FORMAT;
+  formatDetail.textContent = formatterInfo
+    ? formatterInfo.count + (formatterInfo.count === 1 ? " shape" : " shapes") + " · " + formatterInfo.units
+    : "Run a model to produce geometry";
+  const available = new Set(listConversions(formatterInfo?.sourceFormat || SOURCE_FORMAT).map(a => a.target));
+  for (const [target, { row, state, action, adapter }] of formatRows) {
+    row.hidden = !available.has(target);
+    const converting = formatStatuses.get(target) === "Converting…";
+    state.textContent = formatStatuses.get(target) || (adapter.automatic ? "Automatic" : "Ready");
+    const unsupportedAssembly = target === "stl" && formatterInfo?.count > 1;
+    const disabled = !built || !formatterInfo || converting || unsupportedAssembly;
+    // Keep the active button focusable even while it is busy. Guard the
+    // command itself as well; aria-disabled alone is not an event guard.
+    action.setAttribute("aria-disabled", String(disabled));
+    action.title = unsupportedAssembly ? "STL supports one shape. Use STEP for assemblies." : adapter.description;
   }
 }
 renderFormatter();
@@ -424,6 +483,7 @@ function fitModel() {
   camera.updateProjectionMatrix();
   orbit.update();
   fitted = true;
+  requestFrame();
 }
 function drawGeometry(meshes) {
   for (const child of [...geometryGroup.children]) {
@@ -445,26 +505,42 @@ function drawGeometry(meshes) {
     }
   }
   if (!fitted) fitModel();
+  requestFrame();
 }
 let showGrid = true;
 const gridButton = button("Grid: on", () => {
   showGrid = !showGrid; grid.visible = showGrid;
   gridButton.textContent = "Grid: " + (showGrid ? "on" : "off");
+  requestFrame();
 });
 viewportActions.append(button("Fit", fitModel), gridButton);
-const resize = new ResizeObserver(() => {
+// Render on demand, including damping frames reported by OrbitControls.
+let frame = 0;
+let renderedWidth = 0, renderedHeight = 0;
+function requestFrame() {
+  if (!frame && !document.hidden) frame = requestAnimationFrame(renderFrame);
+}
+function renderFrame() {
+  frame = 0;
+  if (!canvas.isConnected || document.querySelector("dialog[open]")) return;
+  if (canvas.closest("[inert]")) return;
   const width = canvasWrap.clientWidth, height = canvasWrap.clientHeight;
   if (width < 2 || height < 2) return;
-  renderer.setSize(width, height, false);
-  camera.aspect = width / height; camera.updateProjectionMatrix();
-});
-resize.observe(canvasWrap);
-function animate() {
-  requestAnimationFrame(animate);
-  if (!canvas.isConnected || canvasWrap.clientWidth < 2) return;
-  orbit.update(); renderer.render(scene, camera);
+  if (width !== renderedWidth || height !== renderedHeight) {
+    renderedWidth = width; renderedHeight = height;
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  }
+  orbit.update();
+  renderer.render(scene, camera);
 }
-animate();
+const resize = new ResizeObserver(requestFrame);
+resize.observe(canvasWrap);
+orbit.addEventListener("change", requestFrame);
+document.addEventListener("visibilitychange", requestFrame);
+document.addEventListener("workspace:presentation", requestFrame);
+requestFrame();
 
 // Files are opened and saved locally, without browser-owned model storage.
 async function saveModel(forceAs = false) {
@@ -521,8 +597,7 @@ const commands = [
   ["Open model…", openModel],
   ["Save model", () => saveModel()],
   ["Save as…", () => saveModel(true)],
-  ["New from pavilion example", () => loadExample(0)],
-  ["New from rounded block example", () => loadExample(1)],
+  ...EXAMPLES.map((example, index) => ["Demo: " + example.name, () => loadExample(index)]),
   ["Refresh viewer geometry", () => requestConversion("viewer/mesh")],
   ["Fit geometry to view", fitModel],
   ["Export STEP", () => exportModel("step")],
@@ -542,15 +617,23 @@ function renderCommands() {
   commandResults.replaceChildren();
   if (!filteredCommands.length) commandResults.append(el("div", "empty", "No matching commands."));
   filteredCommands.forEach(([name, run], index) => {
-    const row = button(name, () => { palette.close(); run(); }, "command-row");
+    const row = button(name, () => executeCommand(run), "command-row");
     if (index === 0) row.classList.add("selected");
     commandResults.append(row);
   });
 }
 function openPalette() {
-  commandSearch.value = ""; renderCommands(); palette.showModal();
-  commandSearch.focus();
+  if (palette.open) { commandSearch.focus({ preventScroll: true }); return; }
+  commandSearch.value = "";
+  renderCommands();
+  palette.showModal();
+  commandSearch.focus({ preventScroll: true });
 }
+function executeCommand(action) {
+  palette.close();
+  action();
+}
+palette.addEventListener("close", requestFrame);
 $("commandButton").addEventListener("click", openPalette);
 $("closePalette").addEventListener("click", () => palette.close());
 commandSearch.addEventListener("input", renderCommands);
@@ -560,16 +643,22 @@ commandSearch.addEventListener("keydown", event => {
     selectedCommand = (selectedCommand + (event.key === "ArrowDown" ? 1 : -1) + filteredCommands.length) %
       Math.max(1, filteredCommands.length);
     [...commandResults.children].forEach((node, i) => node.classList.toggle("selected", i === selectedCommand));
+    commandResults.children[selectedCommand]?.scrollIntoView({ block: "nearest" });
   } else if (event.key === "Enter" && filteredCommands[selectedCommand]) {
     event.preventDefault();
     const action = filteredCommands[selectedCommand][1];
-    palette.close(); action();
+    executeCommand(action);
   }
 });
 palette.addEventListener("click", event => { if (event.target === palette) palette.close(); });
 document.addEventListener("keydown", event => {
+  if (event.isComposing || event.defaultPrevented) return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-    event.preventDefault(); openPalette();
+    if (event.repeat) { event.preventDefault(); return; }
+    event.preventDefault();
+    if (palette.open) palette.close(); else openPalette();
+  } else if (palette.open) {
+    return;
   } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
     event.preventDefault(); saveModel();
   } else if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
