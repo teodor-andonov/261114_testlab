@@ -52,7 +52,7 @@ const timestampLabel = value => {
 function projectCard(project) {
   const card = document.createElement('a');
   card.className = 'project-card';
-  card.href = `./${encodeURIComponent(project.folder)}/`;
+  card.href = `./${encodeURIComponent(project.folder)}/${project.commit ? "?v=" + encodeURIComponent(project.commit.slice(0,7)) : ""}`;
   const header = document.createElement('div');
   header.className = 'card-head';
   const number = document.createElement('span');

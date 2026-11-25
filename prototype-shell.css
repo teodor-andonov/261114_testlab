@@ -2,7 +2,7 @@
 .testlab-floating-controls {
   all: initial;
   position: fixed;
-  bottom: max(18px, env(safe-area-inset-bottom));
+  bottom: max(37px, calc(env(safe-area-inset-bottom) + 27px));
   right: max(18px, env(safe-area-inset-right));
   z-index: 2147483000;
   display: flex;
@@ -58,3 +58,22 @@
 @media (prefers-reduced-motion:reduce) {
   .testlab-floating-controls .testlab-floating-button {transition:none}
 }
+
+/* Build identity, static in HTML so cached pages never claim a newer commit. */
+.testlab-release-id {
+  all: initial;
+  position: fixed;
+  bottom: max(5px, env(safe-area-inset-bottom));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 2147483000;
+  box-sizing: border-box;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #f5f5f5e6;
+  color: #555;
+  font: 10px/1.4 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+:root[data-theme="dark"] .testlab-release-id {background:#202020e6;color:#b5b5b5}
