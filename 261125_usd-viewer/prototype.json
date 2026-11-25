@@ -1,0 +1,13 @@
+{
+  "title": "USD Viewer",
+  "description": "Local USD scene inspection and native USDA BRep tessellation.",
+  "category": "CAD / Viewer",
+  "status": "Prototype",
+  "monogram": "USD",
+  "tags": [
+    "USD",
+    "BRep",
+    "Three.js",
+    "WASM"
+  ]
+}
