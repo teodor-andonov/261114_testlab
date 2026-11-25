@@ -23,7 +23,6 @@ const fmt=n=>Number.isFinite(n)?Number(n.toPrecision(6)).toLocaleString("en-GB",
 function dispose(o){const geometries=new Set(),materials=new Set();o.traverse(x=>{if(x.geometry)geometries.add(x.geometry);for(const m of Array.isArray(x.material)?x.material:[x.material])if(m)materials.add(m)});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());}
 function fileOf(o){for(let p=o;p&&p!==root;p=p.parent)if(p.userData.document)return p.userData.document;return null;}
 function updateEmpty(){const empty=$("empty");empty.hidden=documents.length>0||busy; $("fileName").textContent=documents.length===1?documents[0].name:documents.length+" files";}
-function fail(message){console.error(message);status(message);updateEmpty();}
 function updateTheme(){scene.background=color("--view");if(grid&&sceneSphere)rebuildGrid(new T.Box3().setFromObject(root));refreshMaterials();}
 window.addEventListener("testlab:themechange",updateTheme);
 new MutationObserver(updateTheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
@@ -33,7 +32,7 @@ function refreshMaterials(){root.traverse(o=>{if(!renderable(o)||!o.material)ret
 function rebuildGrid(box){if(grid){scene.remove(grid);dispose(grid);}const size=box.getSize(new T.Vector3()),center=box.getCenter(new T.Vector3()),extent=Math.max(size.x,size.y,size.z,1e-6),step=10**Math.floor(Math.log10(extent)),span=step*10;grid=new T.GridHelper(span,20,color("--grid-major"),color("--grid"));grid.position.set(center.x,box.min.y-extent*.02,center.z);grid.renderOrder=-100;grid.material.depthWrite=false;grid.visible=gridVisible;scene.add(grid);}
 function fit(target=root){target.updateWorldMatrix(true,true);const box=new T.Box3().setFromObject(target);if(box.isEmpty())return;const s=box.getBoundingSphere(new T.Sphere()),r=Math.max(s.radius,1e-7),fov=camera.fov*Math.PI/180,half=Math.min(fov/2,Math.atan(Math.tan(fov/2)*camera.aspect)),distance=r/Math.sin(half)*1.2,dir=camera.position.clone().sub(controls.target).normalize();if(!dir.lengthSq())dir.set(1,.8,1).normalize();camera.position.copy(s.center).addScaledVector(dir,distance);controls.target.copy(s.center);controls.update();if(target===root)updateBounds();updateClip();}
 function updateBounds(){const box=new T.Box3().setFromObject(root);if(box.isEmpty()){sceneSphere=null;if(grid){scene.remove(grid);dispose(grid);grid=null;}return;}sceneSphere=box.getBoundingSphere(new T.Sphere());rebuildGrid(box);}
-function updateClip(){if(!sceneSphere)return;const r=Math.max(sceneSphere.radius,1e-8),d=camera.position.distanceTo(sceneSphere.center),near=Math.max(r*.0005,d-r*1.5,1e-10),far=Math.max(near*2,d+r*8);if(camera.near!==near||camera.far!==far){camera.near=near;camera.far=far;camera.updateProjectionMatrix();}}
+function updateClip(){if(!sceneSphere)return;const r=Math.max(sceneSphere.radius,1e-8),d=sceneSphere.center.clone().sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())),near=Math.max(r*.0005,d-r*1.5,1e-10),far=Math.max(near*2,d+r*8);if(camera.near!==near||camera.far!==far){camera.near=near;camera.far=far;camera.updateProjectionMatrix();}}
 function resize(){const w=viewport.clientWidth,h=viewport.clientHeight;if(!w||!h)return;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
 new ResizeObserver(resize).observe(viewport);resize();updateTheme();
 renderer.setAnimationLoop(()=>{controls.update();updateClip();renderer.render(scene,camera);});
@@ -51,7 +50,7 @@ function renderTree(){const q=$("search").value.trim().toLowerCase(),frag=docume
 function inspect(){details.replaceChildren();if(!selected){const p=el("p",null,"Select an object to inspect it.");details.append(p);return;}const o=selected;details.append(el("h3",null,name(o)));let dl=el("dl");details.append(dl);
  const add=(k,v)=>{dl.append(el("dt",null,k),el("dd",null,String(v)));};
  add("Type",kind(o));const path=[];for(let p=o;p&&p!==root;p=p.parent)if(p.parent?.userData.document?.mode!=="brep")path.unshift(name(p));add("Viewer path","/"+path.join("/"));add("Visible",visible(o)?"Yes":"No");const doc=fileOf(o);add("Source file",doc?.name||"—");add("Source",doc?.mode==="brep"?"Exact BRep → tessellation":"USD render geometry");
- const box=new T.Box3().setFromObject(o);if(!box.isEmpty())add("Bounds (view)",box.getSize(new T.Vector3()).toArray().map(fmt).join(" × "));
+ const box=new T.Box3().setFromObject(o);if(!box.isEmpty())add("Bounds (m)",box.getSize(new T.Vector3()).toArray().map(fmt).join(" × "));
  let vertices=0,triangles=0;o.traverse(x=>{if(x.isMesh){vertices+=x.geometry.attributes.position?.count||0;triangles+=(x.geometry.index?.count||x.geometry.attributes.position?.count||0)/3;}});
  add("Render vertices",fmt(vertices));add("Triangles",fmt(triangles));
  if(o.userData.brepBody){add("CAD faces",o.userData.faces);add("CAD edges",o.userData.edges);add("Volume (kernel units³)",fmt(o.userData.volume));add("Tolerance (kernel units)",fmt(o.userData.tolerance));}
@@ -91,12 +90,12 @@ function atPath(o,path){return path?.reduce((p,i)=>p?.children[i],o)||null;}
 async function replacePreview(doc,mode,demo=false){
  const model=mode==="brep"?await buildBrep(doc,demo):buildMesh(doc);
  const old=doc.group.children[0];const path=old&&fileOf(selected)===doc&&selected!==doc.group?childPath(selected,old):null;
- if(old){old.traverse(o=>{const n=atPath(model,childPath(o,old));if(n&&!o.userData.previewEdge)n.visible=o.visible;if(collapsed.delete(o)&&n)collapsed.add(n);});doc.group.remove(old);dispose(old);}
+ if(old){old.traverse(o=>{const n=doc.mode===mode?atPath(model,childPath(o,old)):null;if(n&&!o.userData.previewEdge)n.visible=o.visible;if(collapsed.delete(o)&&n)collapsed.add(n);});doc.group.remove(old);dispose(old);}
  // Every file has a stable explorer root, with an internal axis/scale group.
  // SMLib uses millimetres; Three USDLoader outputs metres.
  if(mode==="brep")model.scale.setScalar(.001);
- doc.group.add(model);doc.mode=mode;
- if(path)selected=atPath(model,path)||doc.group;
+ doc.group.add(model);doc.previousMode=doc.mode;doc.mode=mode;
+ if(path)selected=old&&doc.previousMode===mode?(atPath(model,path)||doc.group):doc.group;
 }
 async function openFiles(files,demo=false){
  if(busy||(!files.length&&!demo))return;
@@ -148,7 +147,7 @@ function showCommands(){commandSearch.value="";renderCommands();if(!palette.open
 $("commands").onclick=showCommands;commandSearch.oninput=renderCommands;commandSearch.onkeydown=e=>{const buttons=[...$("commandList").querySelectorAll("button")];if(e.key==="Enter"){e.preventDefault();buttons[activeIndex]?.click();}else if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();activeIndex=Math.max(0,Math.min(buttons.length-1,activeIndex+(e.key==="ArrowDown"?1:-1)));highlightCommand();}};
 document.addEventListener("keydown",e=>{
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();if(palette.open)palette.close();else showCommands();return;}
- if(palette.open||e.target.matches?.("input,textarea,[contenteditable]"))return;
+ if(palette.open||(!e.ctrlKey&&!e.metaKey&&e.target.matches?.("input,textarea,[contenteditable]")))return;
  const key=e.key.toLowerCase(),combo=(e.ctrlKey||e.metaKey?"ctrl+":e.shiftKey?"shift+":"")+(key==="escape"?"esc":key);
  const command=commands.find(c=>c.key.toLowerCase()===combo&&(!c.enabled||c.enabled()));
  if(command){e.preventDefault();command.run();}
