@@ -19,7 +19,7 @@ const name=o=>o.name||o.type;
 const kind=o=>o.userData.kind||(o.isMesh?"Mesh":o.isPoints?"Points":o.isLine?"Curve":o.isGroup?"Group":o.type);
 const fmt=n=>Number.isFinite(n)?Number(n.toPrecision(6)).toLocaleString("en-GB",{maximumFractionDigits:9}):"—";
 function dispose(o){const geometries=new Set(),materials=new Set();o.traverse(x=>{if(x.geometry)geometries.add(x.geometry);for(const m of Array.isArray(x.material)?x.material:[x.material])if(m)materials.add(m)});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());}
-function reset(){worker?.terminate();worker=null;revision++;busy=false;scene.remove(root);dispose(root);root=new T.Group();scene.add(root);selected=null;collapsed.clear();$("stats").textContent="";tree.replaceChildren();details.replaceChildren();$("empty").hidden=true;return revision;}
+function reset(){worker?.terminate();worker=null;revision++;busy=false;scene.remove(root);dispose(root);if(grid){scene.remove(grid);dispose(grid);grid=null;}root=new T.Group();scene.add(root);selected=null;collapsed.clear();$("stats").textContent="";tree.replaceChildren();details.replaceChildren();$("empty").hidden=true;return revision;}
 function fail(message){busy=false;worker?.terminate();worker=null;status(message);$("empty").hidden=false;$("empty").querySelector("strong").textContent="Unable to preview";$("empty").querySelector("span").textContent=message;}
 function updateTheme(){scene.background=color("--view");if(grid){grid.material.color.set(color("--grid"));}refreshMaterials();}
 window.addEventListener("testlab:themechange",updateTheme);
@@ -36,7 +36,7 @@ function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=
 function select(o){selected=o;refreshMaterials();renderTree();inspect();}
 function visible(o){for(let p=o;p;p=p.parent)if(!p.visible)return false;return true;}
 function renderTree(){const q=$("search").value.trim().toLowerCase(),frag=document.createDocumentFragment();
- const matches=o=>!q||name(o).toLowerCase().includes(q)||kind(o).toLowerCase().includes(q)||nodeChildren(o).some(matches);
+ const matches=o=>!q||name(o).toLowerCase().includes(q)||kind(o).toLowerCase().includes(q)||(!o.userData.brepBody&&nodeChildren(o).some(matches));
  function add(o,depth){if(!matches(o))return;const children=o.userData.brepBody?[]:nodeChildren(o),row=el("div","tree-row"+(o===selected?" selected":""));row.style.paddingLeft=(5+depth*13)+"px";row.setAttribute("role","treeitem");row.setAttribute("aria-selected",String(o===selected));if(children.length)row.setAttribute("aria-expanded",String(!collapsed.has(o)||!!q));
  const arrow=el("button","arrow",children.length?(collapsed.has(o)&&!q?"▸":"▾"):"·");arrow.disabled=!children.length;arrow.title="Expand / collapse";arrow.onclick=()=>{if(collapsed.has(o))collapsed.delete(o);else collapsed.add(o);renderTree();};
  const label=el("button","name",(o.userData.brepBody?"◇ ":o.isMesh?"△ ":"□ ")+name(o));label.title=name(o);label.onclick=()=>select(o);label.ondblclick=()=>fit(o);
