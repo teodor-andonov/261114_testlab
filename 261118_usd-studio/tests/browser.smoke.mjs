@@ -51,8 +51,11 @@ test("production browser worker initializes, logs stages and exports USDA under 
     await page.waitForFunction(()=>document.querySelector("#export").disabled===false,{},{timeout:95000});
     assert.match(await page.locator("#stats").textContent(),/objects/);
     assert.match(await page.locator("#stats").textContent(),/209 objects/);
-    await page.selectOption("#quality","draft");await page.waitForFunction(()=>document.querySelector("#status").textContent.includes("draft preview"),{},{timeout:60000});
+    assert.match(await page.locator("#status").textContent(),/draft preview \(auto\)/);
     await page.selectOption("#quality","standard");await page.waitForFunction(()=>document.querySelector("#status").textContent.includes("standard preview"),{},{timeout:60000});
+    await page.selectOption("#quality","draft");await page.waitForFunction(()=>document.querySelector("#status").textContent.includes("draft preview"),{},{timeout:60000});
+    assert.match(await page.locator("#stats").textContent(),/209 cached/);
+    await page.selectOption("#mode","edges");await page.waitForFunction(()=>document.querySelector("#export").disabled===false,{},{timeout:60000});
     assert.match(await page.locator("#stats").textContent(),/209 cached/);
     assert.match(await page.locator("#engineLog").textContent(),/Reusing existing exact BRep model/);
     await page.click("#usdTab");await page.waitForFunction(()=>document.querySelector("#usda").textContent.includes("Tower_A_Rounded_Roof_Crown"),{},{timeout:60000});

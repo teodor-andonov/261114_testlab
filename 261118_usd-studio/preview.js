@@ -16,3 +16,6 @@ export function expandPreview(positions, indices, rawNormals) {
   }
   return {corners,normals};
 }
+
+// Large models start with a responsive display mesh; explicit quality always wins.
+export function resolveQuality(requested,count){return requested==="auto"?(count>=80?"draft":"standard"):requested;}

@@ -30,7 +30,7 @@ export function boundsFor(shapes){return sm.scope(()=>{
  let box=shapes[0].bbox();for(let i=1;i<shapes.length;i++)box=box.union(shapes[i].bbox());
  return {min:[box.min.x,box.min.y,box.min.z],max:[box.max.x,box.max.y,box.max.z]};
 });}
-export function meshShape(shape,quality="standard"){
+export function meshShape(shape,quality="standard",includeEdges=true){
  return sm.scope(()=>{
   const q=QUALITY[quality];if(!q)throw new Error("Unknown preview quality");
   const start=performance.now();
@@ -42,6 +42,13 @@ export function meshShape(shape,quality="standard"){
   const prepStart=performance.now();
   const {corners,normals}=expandPreview(positions,indices,mesh.normals);
   if(!normals)console.warn("Kernel provided no usable corner normals; using flat preview shading.");
+  const edgeData=includeEdges?sampleEdges(shape,quality):{lines:null,edges:0};
+  return {positions,indices,corners,normals,...edgeData,faces:shape.faces().length,tolerance,tessMs,prepMs:performance.now()-prepStart};
+ });
+}
+export function sampleEdges(shape,quality="standard"){
+ return sm.scope(()=>{
+  const q=QUALITY[quality];if(!q)throw new Error("Unknown preview quality");
   const edges=shape.edges(),lines=[];
   for(const edge of edges){
    if(edge.isSeam)continue;
@@ -51,7 +58,7 @@ export function meshShape(shape,quality="standard"){
     for(let j=1;j<=n;j++){const next=edge.pointAt(j/n),seg=[prev.x,prev.y,prev.z,next.x,next.y,next.z];if(seg.every(Number.isFinite))lines.push(...seg);prev=next;}
    }catch(error){console.warn("Preview edge sampling failed: "+error.message);}
   }
-  return {positions,indices,corners,normals,lines:new Float32Array(lines),faces:shape.faces().length,edges:edges.length,tolerance,tessMs,prepMs:performance.now()-prepStart};
+  return {lines:new Float32Array(lines),edges:edges.length};
  });
 }
 export function metadata(shape){return {name:shape.name||null,color:shape.color?Array.from(shape.color):null};}
