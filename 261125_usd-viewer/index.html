@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>USD Viewer</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./testlab-theme.css"></head>
 <body>
-<header><strong>USD Viewer</strong><span id="fileName">No file</span><button id="commands" title="Commands (Ctrl+K)">⌕ Commands <kbd>Ctrl K</kbd></button></header>
+<header><strong>USD Viewer</strong><span id="fileName">0 files</span><button id="commands" title="Commands (Ctrl+K)">⌕ Commands <kbd>Ctrl K</kbd></button></header>
 <main>
 <aside class="left"><div class="panel-title">Explorer</div><div class="panel-input"><input id="search" type="search" placeholder="Filter objects" aria-label="Filter objects"></div><div id="tree" role="tree"></div></aside>
-<section id="viewport" aria-label="3D viewport"><div id="empty"><strong>Open a USD file</strong><span>Drop .usd, .usda, .usdc or .usdz</span><button id="open">Open file</button><button id="demo">Try BRep demo</button></div><div id="viewLabel">Perspective</div><div id="viewActions"><button id="fit" title="Frame all (F)">Frame</button><button id="wire" aria-pressed="false">Wire</button></div></section>
+<section id="viewport" aria-label="3D viewport"><div id="empty"><strong>Open USD files</strong><span>Drop files here or press Ctrl+O</span><span>Ctrl+K for commands and demo</span></div><div id="viewLabel">Perspective</div></section>
 <aside class="right"><div class="panel-title">Object details</div><div id="details" class="details"><p>Select an object to inspect it.</p></div></aside>
 </main>
 <footer><span id="status" role="status">Ready</span><span id="stats"></span></footer>
-<input type="file" hidden id="file" accept=".usd,.usda,.usdc,.usdz">
+<input type="file" hidden id="file" multiple accept=".usd,.usda,.usdc,.usdz">
 <dialog id="palette"><input id="commandSearch" type="search" placeholder="Search commands…" aria-label="Search commands"><div id="commandList"></div></dialog>
 <script type="module" src="./app.js"></script>
 </body></html>

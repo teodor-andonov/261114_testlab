@@ -8,7 +8,7 @@ self.addEventListener("message",({data})=>{
   if(!engine)throw new Error("Kernel not initialized");
   const text=data.demo?engine.demoUsd():data.text;
   if(data.demo)send("source",{text});
-  const count=engine.readBreps(text,(body,done,total)=>send("body",{body,done,total}));
+  const count=engine.readBreps(text,(body,done,total)=>send("body",{body,done,total}),data.quality);
   send("done",{count});
  }catch(e){report(e);}
 });
