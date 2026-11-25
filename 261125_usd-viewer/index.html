@@ -3,9 +3,9 @@
 <body>
 <header><strong>USD Viewer</strong><span id="fileName">0 files</span><button id="commands" title="Commands (Ctrl+K)">⌕ Commands <kbd>Ctrl K</kbd></button></header>
 <main>
-<aside class="left"><div class="panel-title">Explorer</div><div class="panel-input"><input id="search" type="search" placeholder="Filter objects" aria-label="Filter objects"></div><div id="tree" role="tree"></div></aside>
+<aside class="left"><div class="panel-title">Explorer</div><div class="panel-input"><input id="search" type="search" placeholder="Filter objects" aria-label="Filter objects"></div><div id="tree" role="tree"></div><div id="resize-left" class="sidebar-resize" role="separator" aria-label="Resize explorer" aria-orientation="vertical" tabindex="0"></div></aside>
 <section id="viewport" aria-label="3D viewport"><div id="empty"><strong>Open USD files</strong><span>Drop files here or press Ctrl+O</span><span>Ctrl+K for commands and demo</span></div><div id="viewLabel">Perspective</div></section>
-<aside class="right"><div class="panel-title">Object details</div><div id="details" class="details"><p>Select an object to inspect it.</p></div></aside>
+<aside class="right"><div class="panel-title">Object details</div><div id="details" class="details"><p>Select an object to inspect it.</p></div><div id="resize-right" class="sidebar-resize" role="separator" aria-label="Resize object details" aria-orientation="vertical" tabindex="0"></div></aside>
 </main>
 <footer><span id="status" role="status">Ready</span><span id="stats"></span></footer>
 <input type="file" hidden id="file" multiple accept=".usd,.usda,.usdc,.usdz">

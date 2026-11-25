@@ -3,6 +3,8 @@ import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import {USDLoader} from "three/addons/loaders/USDLoader.js";
 import {detect} from "./format.js";
 import {QUALITY} from "./quality.js";
+import {captureMaterials,applyAppearance,disposeAppearance,materialInfo,DISPLAY_MODES} from "./appearance.js";
+import {installResizers} from "./sidebars.js";
 const $=id=>document.getElementById(id), viewport=$("viewport"), tree=$("tree"), details=$("details");
 const renderer=new T.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));viewport.prepend(renderer.domElement);
 const scene=new T.Scene(), camera=new T.PerspectiveCamera(45,1,.001,1e8);
@@ -10,7 +12,7 @@ camera.position.set(5,4,6);const controls=new OrbitControls(camera,renderer.domE
 scene.add(new T.HemisphereLight(0xffffff,0x777777,2.3));const light=new T.DirectionalLight(0xffffff,2.4);light.position.set(5,8,3);scene.add(light);
 const rim=new T.DirectionalLight(0xffffff,.8);rim.position.set(-5,2,-5);scene.add(rim);
 const root=new T.Group(),documents=[];
-let grid,selected=null,wire=false,gridVisible=true,worker=null,collapsed=new Set(),busy=false,quality="normal",sceneSphere=null;
+let grid,selected=null,wire=false,gridVisible=true,worker=null,collapsed=new Set(),busy=false,quality="normal",sceneSphere=null,displayMode="material",nextDocumentId=0;
 scene.add(root);
 const css=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
 const color=k=>new T.Color(css(k));
@@ -20,7 +22,7 @@ const nodeChildren=o=>o.userData.document?.mode==="brep"?(o.children[0]?.childre
 const name=o=>o.name||o.type;
 const kind=o=>o.userData.kind||(o.isMesh?"Mesh":o.isPoints?"Points":o.isLine?"Curve":o.isGroup?"Group":o.type);
 const fmt=n=>Number.isFinite(n)?Number(n.toPrecision(6)).toLocaleString("en-GB",{maximumFractionDigits:9}):"—";
-function dispose(o){const geometries=new Set(),materials=new Set();o.traverse(x=>{if(x.geometry)geometries.add(x.geometry);for(const m of Array.isArray(x.material)?x.material:[x.material])if(m)materials.add(m)});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());}
+function dispose(o){const geometries=new Set(),materials=new Set(),textures=new Set();o.traverse(x=>{if(x.geometry)geometries.add(x.geometry);disposeAppearance(x,materials,textures);});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());}
 function fileOf(o){for(let p=o;p&&p!==root;p=p.parent)if(p.userData.document)return p.userData.document;return null;}
 function updateEmpty(){const empty=$("empty");empty.hidden=documents.length>0||busy; $("fileName").textContent=documents.length===1?documents[0].name:documents.length+" files";}
 function updateTheme(){scene.background=color("--view");if(grid&&sceneSphere)rebuildGrid(new T.Box3().setFromObject(root));refreshMaterials();}
@@ -28,13 +30,13 @@ window.addEventListener("testlab:themechange",updateTheme);
 new MutationObserver(updateTheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 function material(){return new T.MeshStandardMaterial({color:color("--mesh"),roughness:.78,metalness:0,side:T.DoubleSide});}
 function isSelected(o){for(let p=o;p;p=p.parent)if(p===selected)return true;return false;}
-function refreshMaterials(){root.traverse(o=>{if(!renderable(o)||!o.material)return;const c=isSelected(o)?color("--accent"):color(o.userData.previewEdge?"--grid-major":"--mesh");for(const m of Array.isArray(o.material)?o.material:[o.material]){m.color?.copy(c);if(o.isMesh)m.wireframe=wire&&!o.parent?.userData.brepBody;}if(o.userData.previewEdge)o.visible=wire;});}
+function refreshMaterials(){root.traverse(o=>{if(!renderable(o)||!o.material)return;if(o.userData.previewEdge){o.material.color.copy(color(isSelected(o)?"--accent":"--grid-major"));o.visible=wire;return;}const doc=fileOf(o);applyAppearance(o,{mode:displayMode,selected:isSelected(o),accent:color("--accent"),clay:color("--mesh"),wire:wire&&!o.parent?.userData.brepBody,seed:(doc?.id||0)+":"+childPath(o,doc?.group).join("/")});});$("viewLabel").textContent="Perspective · "+DISPLAY_MODES[displayMode];}
 function rebuildGrid(box){if(grid){scene.remove(grid);dispose(grid);}const size=box.getSize(new T.Vector3()),center=box.getCenter(new T.Vector3()),extent=Math.max(size.x,size.y,size.z,1e-6),step=10**Math.floor(Math.log10(extent)),span=step*10;grid=new T.GridHelper(span,20,color("--grid-major"),color("--grid"));grid.position.set(center.x,box.min.y-extent*.02,center.z);grid.renderOrder=-100;grid.material.depthWrite=false;grid.visible=gridVisible;scene.add(grid);}
 function fit(target=root){target.updateWorldMatrix(true,true);const box=new T.Box3().setFromObject(target);if(box.isEmpty())return;const s=box.getBoundingSphere(new T.Sphere()),r=Math.max(s.radius,1e-7),fov=camera.fov*Math.PI/180,half=Math.min(fov/2,Math.atan(Math.tan(fov/2)*camera.aspect)),distance=r/Math.sin(half)*1.2,dir=camera.position.clone().sub(controls.target).normalize();if(!dir.lengthSq())dir.set(1,.8,1).normalize();camera.position.copy(s.center).addScaledVector(dir,distance);controls.target.copy(s.center);controls.update();if(target===root)updateBounds();updateClip();}
 function updateBounds(){const box=new T.Box3().setFromObject(root);if(box.isEmpty()){sceneSphere=null;if(grid){scene.remove(grid);dispose(grid);grid=null;}return;}sceneSphere=box.getBoundingSphere(new T.Sphere());rebuildGrid(box);}
 function updateClip(){if(!sceneSphere)return;const r=Math.max(sceneSphere.radius,1e-8),d=sceneSphere.center.clone().sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())),near=Math.max(r*.0005,d-r*1.5,1e-10),far=Math.max(near*2,d+r*8);if(camera.near!==near||camera.far!==far){camera.near=near;camera.far=far;camera.updateProjectionMatrix();}}
 function resize(){const w=viewport.clientWidth,h=viewport.clientHeight;if(!w||!h)return;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
-new ResizeObserver(resize).observe(viewport);resize();updateTheme();
+new ResizeObserver(resize).observe(viewport);installResizers(document.querySelector("main"));resize();updateTheme();
 renderer.setAnimationLoop(()=>{controls.update();updateClip();renderer.render(scene,camera);});
 function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x;}
 function select(o){selected=o;refreshMaterials();renderTree();inspect();}
@@ -54,11 +56,12 @@ function inspect(){details.replaceChildren();if(!selected){const p=el("p",null,"
  let vertices=0,triangles=0;o.traverse(x=>{if(x.isMesh){vertices+=x.geometry.attributes.position?.count||0;triangles+=(x.geometry.index?.count||x.geometry.attributes.position?.count||0)/3;}});
  add("Render vertices",fmt(vertices));add("Triangles",fmt(triangles));
  if(o.userData.brepBody){add("CAD faces",o.userData.faces);add("CAD edges",o.userData.edges);add("Volume (kernel units³)",fmt(o.userData.volume));add("Tolerance (kernel units)",fmt(o.userData.tolerance));}
+ const materials=materialInfo(o);if(materials.length){details.append(el("hr"),el("h3",null,"Materials"));for(const m of materials){const row=el("div","material-entry");const head=el("div","material-heading");if(m.hex){const swatch=el("span","material-swatch");swatch.style.background=m.hex;head.append(swatch);}head.append(el("span",null,m.name||"Surface material"));row.append(head);const props=el("dl");for(const [key,value] of [["Base color",m.hex],["Roughness",m.roughness],["Metalness",m.metalness],["Opacity",m.opacity],["Textures",m.textures?.length?m.textures.join(", "):null],["Source",m.source]])if(value!=null){props.append(el("dt",null,key),el("dd",null,typeof value==="number"?fmt(value):value));}row.append(props);details.append(row);}}
  if(doc?.format==="USDA"){add("Stage up axis",doc.upAxis);add("Stage meters/unit",fmt(doc.units));}if(doc?.mode==="brep")add("Preview quality",doc.quality);
 }
 function summarize(){let count=0,triangles=0;root.traverse(o=>{if(o.isMesh){count++;triangles+=(o.geometry.index?.count||o.geometry.attributes.position?.count||0)/3;}});$("stats").textContent=documents.length+" files · "+count+" meshes · "+fmt(triangles)+" triangles · "+quality;}
 function finish(message,frame=false){busy=false;updateEmpty();refreshMaterials();renderTree();inspect();summarize();updateBounds();if(frame)fit();status(message);}
-function addBody(target,body){const g=new T.Group();g.name=body.name;g.userData={brepBody:true,kind:body.kind,faces:body.faces,edges:body.edges,volume:body.volume,tolerance:body.tolerance};const geo=new T.BufferGeometry();geo.setAttribute("position",new T.BufferAttribute(body.corners,3));if(body.normals)geo.setAttribute("normal",new T.BufferAttribute(body.normals,3));else geo.computeVertexNormals();g.add(new T.Mesh(geo,material()));
+function addBody(target,body){const g=new T.Group();g.name=body.name;g.userData={brepBody:true,kind:body.kind,faces:body.faces,edges:body.edges,volume:body.volume,tolerance:body.tolerance};const geo=new T.BufferGeometry();geo.setAttribute("position",new T.BufferAttribute(body.corners,3));if(body.normals)geo.setAttribute("normal",new T.BufferAttribute(body.normals,3));else geo.computeVertexNormals();const mesh=new T.Mesh(geo,material());if(body.color?.length>=3){mesh.material.color.setRGB(body.color[0],body.color[1],body.color[2],T.SRGBColorSpace);if(body.color.length>3&&body.color[3]<1){mesh.material.opacity=body.color[3];mesh.material.transparent=true;}}captureMaterials(mesh,body.color?"BRep body color":"Viewer default");g.add(mesh);
  const edgeGeo=new T.BufferGeometry();edgeGeo.setAttribute("position",new T.BufferAttribute(body.lines,3));const edge=new T.LineSegments(edgeGeo,new T.LineBasicMaterial({color:color("--grid-major")}));edge.userData.previewEdge=true;edge.visible=wire;g.add(edge);target.add(g);}
 function buildBrep(doc,demo=false){
  return new Promise((resolve,reject)=>{
@@ -82,7 +85,7 @@ function buildBrep(doc,demo=false){
 function buildMesh(doc){
  const manager=new T.LoadingManager();manager.setURLModifier(url=>/^(blob:|data:)/.test(url)?url:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1sAAAAASUVORK5CYII=");
  const model=new USDLoader(manager).parse(doc.bytes);let count=0;
- model.traverse(o=>{if(!renderable(o))return;count++;const old=Array.isArray(o.material)?o.material:[o.material];o.material=o.isMesh?material():o.isPoints?new T.PointsMaterial({color:color("--mesh"),size:.01}):new T.LineBasicMaterial({color:color("--mesh")});for(const m of old)m?.dispose();});
+ model.traverse(o=>{if(!renderable(o))return;count++;if(!o.material)o.material=o.isMesh?material():o.isPoints?new T.PointsMaterial({color:color("--mesh"),size:.01}):new T.LineBasicMaterial({color:color("--mesh")});captureMaterials(o,"USD loader");});
  if(!count){dispose(model);throw new Error("No supported render geometry. Binary or packaged BRep-only stages require conversion to USDA.");}model.name=model.name||"Stage";return model;
 }
 function childPath(o,ancestor){const path=[];for(let p=o;p&&p!==ancestor;p=p.parent){if(!p.parent)return null;path.unshift(p.parent.children.indexOf(p));}return path;}
@@ -101,7 +104,7 @@ async function openFiles(files,demo=false){
  if(busy||(!files.length&&!demo))return;
  busy=true;updateEmpty();const errors=[];let added=0;
  for(const file of demo?[{name:"BRep demo.usda"}]:files){
-  const doc={name:file.name,group:new T.Group()};
+  const doc={id:++nextDocumentId,name:file.name,group:new T.Group()};
   doc.group.name=doc.name;doc.group.userData={document:doc,kind:"File"};
   try{status("Reading "+doc.name+"…");
    if(!demo){const bytes=await file.arrayBuffer();Object.assign(doc,detect(bytes),{bytes});}
@@ -117,6 +120,7 @@ async function setQuality(next){if(busy||quality===next)return;quality=next;busy
 async function changeMode(mode){const doc=fileOf(selected)||(documents.length===1?documents[0]:null);if(!doc||busy)return;busy=true;try{await replacePreview(doc,mode);finish(mode==="brep"?"Exact BRep preview":"Authored USD mesh preview");}catch(e){finish("Preview failed: "+e.message);}}
 function closeDocument(){const doc=fileOf(selected);if(!doc||busy)return;root.remove(doc.group);dispose(doc.group);documents.splice(documents.indexOf(doc),1);doc.group.traverse(o=>collapsed.delete(o));selected=null;finish("Closed "+doc.name);}
 function clearScene(){if(busy)return;for(const doc of documents){root.remove(doc.group);dispose(doc.group);}documents.length=0;collapsed.clear();selected=null;finish("Ready");}
+function setDisplayMode(mode){displayMode=mode;refreshMaterials();inspect();status("View mode: "+DISPLAY_MODES[mode]);}
 function toggleWire(){wire=!wire;refreshMaterials();status(wire?"Wire / CAD edges on":"Wire / CAD edges off");}
 function toggleGrid(){gridVisible=!gridVisible;if(grid)grid.visible=gridVisible;status(gridVisible?"Grid visible":"Grid hidden");}
 function demo(){openFiles([],true);}
@@ -135,6 +139,7 @@ const commands=[
  {title:"Frame selection",key:"Shift+F",run:()=>fit(selected),enabled:()=>!!selected},
  {title:"Toggle wire / CAD edges",key:"W",run:toggleWire,checked:()=>wire},
  {title:"Toggle grid",key:"G",run:toggleGrid,checked:()=>gridVisible},
+ ...Object.entries(DISPLAY_MODES).map(([mode,label],i)=>({title:"View: "+label,key:String(i+4),run:()=>setDisplayMode(mode),checked:()=>displayMode===mode})),
  ...Object.keys(QUALITY).map((q,i)=>({title:"Tessellation: "+q[0].toUpperCase()+q.slice(1),key:String(i+1),run:()=>setQuality(q),enabled:()=>!busy,checked:()=>quality===q})),
  {title:"Show all objects",key:"",run:()=>{root.traverse(o=>{if(!o.userData.previewEdge)o.visible=true;});renderTree();inspect();}},
  {title:"Clear selection",key:"Esc",run:()=>select(null)}
