@@ -116,7 +116,7 @@ def main():
         json.dumps({"commit": commit, "projects": projects}, indent=2) + "\n", encoding="utf-8"
     )
     (OUTPUT / "release.json").write_text(
-        json.dumps({"commit": commit, "projects": {p["folder"]: p["version"] for p in projects}}, indent=2) + "\\n", encoding="utf-8")
+        json.dumps({"commit": commit, "projects": {p["folder"]: p["version"] for p in projects}}, indent=2) + "\n", encoding="utf-8")
     print("Built Testlab:", len(projects), "prototype(s)")
     for project in projects:
         print(" -", project["folder"], project["version"],
