@@ -62,6 +62,12 @@ jobs:
           npm install --no-audit --no-fund
           npm test
           npm run build
+      - name: Build USD Viewer
+        working-directory: 261125_usd-viewer
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+          npm run build
       - name: Assemble landing page and self-contained prototypes
         run: python3 .github/scripts/build_site.py
       - uses: actions/configure-pages@v5
