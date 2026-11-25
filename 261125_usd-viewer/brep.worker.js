@@ -1,9 +1,15 @@
-import {readBreps,demoUsd} from "./brep.js";
-self.onmessage=({data})=>{
+let engine;
+const send=(type,fields={})=>self.postMessage({type,...fields});
+const report=e=>send("error",{message:e?.stack||e?.message||String(e)});
+self.addEventListener("unhandledrejection",e=>report(e.reason));
+self.addEventListener("error",e=>report(e.error||e.message));
+self.addEventListener("message",({data})=>{
  try{
-  const text=data.demo?demoUsd():data.text;
-  if(data.demo)self.postMessage({type:"source",text});
-  const count=readBreps(text,(body,done,total)=>self.postMessage({type:"body",body,done,total},[body.corners.buffer,body.lines.buffer,...(body.normals?[body.normals.buffer]:[])]));
-  self.postMessage({type:"done",count});
- }catch(e){self.postMessage({type:"error",message:e?.message||String(e)});}
-};
+  if(!engine)throw new Error("Kernel not initialized");
+  const text=data.demo?engine.demoUsd():data.text;
+  if(data.demo)send("source",{text});
+  const count=engine.readBreps(text,(body,done,total)=>send("body",{body,done,total}));
+  send("done",{count});
+ }catch(e){report(e);}
+});
+(async()=>{try{engine=await import("./brep.js");send("ready");}catch(e){report(e);}})();
