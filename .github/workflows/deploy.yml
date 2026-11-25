@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -19,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment_retry.outputs.page_url || steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,9 +71,27 @@ jobs:
           npm run build
       - name: Assemble landing page and self-contained prototypes
         run: python3 .github/scripts/build_site.py
-      - uses: actions/configure-pages@v5
+      - id: pages
+        uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+      - name: Wait for Pages artifact to be visible in REST API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/wait_for_pages_artifact.py
       - id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Recheck artifact before retrying Pages deployment
+        if: steps.deployment.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/wait_for_pages_artifact.py
+      - id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+      - name: Verify the public release and prototype labels
+        env:
+          PAGES_URL: ${{ steps.deployment_retry.outputs.page_url || steps.deployment.outputs.page_url || steps.pages.outputs.base_url }}
+        run: python3 .github/scripts/verify_pages_release.py

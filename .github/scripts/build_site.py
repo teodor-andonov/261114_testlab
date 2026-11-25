@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Assemble the Testlab gallery and inject the shared prototype shell."""
 import json
+from html import escape
 import os
 import re
 import shutil
@@ -35,8 +36,8 @@ def version_of(folder, metadata):
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
-def inject_shell(index_file, folder_name, has_theme):
-    """No prototype needs to copy a home button, theme toggle or release badge."""
+def inject_shell(index_file, folder_name, has_theme, version, commit):
+    """Inject shared controls and the identity of the actual built release."""
     markup = index_file.read_text(encoding="utf-8")
     if "</head>" not in markup or "</body>" not in markup:
         raise ValueError(f"Prototype {folder_name} must have closing head and body tags")
@@ -56,7 +57,12 @@ def inject_shell(index_file, folder_name, has_theme):
     if has_theme:
         css += f'<link rel="stylesheet" href="{relative(OUTPUT / folder_name / "testlab-theme.css")}">'
     markup = markup.replace("</head>", boot + "\n" + css + "\n</head>", 1)
-    markup = markup.replace("</body>", f'<script defer src="{relative(OUTPUT / "prototype-shell.js")}"></script>\n</body>', 1)
+    version_label = escape(version or "unversioned", quote=True)
+    sha = escape(commit, quote=True)
+    badge = (f'<span class="testlab-release-id" data-version="{version_label}" data-commit="{sha}" '
+             f'title="App version {version_label}; deployed repository commit {sha}">'
+             f'v{version_label} · {sha[:7]}</span>')
+    markup = markup.replace("</body>", badge + f'\n<script defer src="{relative(OUTPUT / "prototype-shell.js")}"></script>\n</body>', 1)
     index_file.write_text(markup, encoding="utf-8")
 
 
@@ -69,6 +75,7 @@ def main():
         shutil.copy2(ROOT / name, OUTPUT / name)
     shutil.copytree(ROOT / "icons", OUTPUT / "icons")
     (OUTPUT / ".nojekyll").touch()
+    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     projects = []
     for folder in sorted(ROOT.iterdir(), reverse=True):
         match = PATTERN.fullmatch(folder.name)
@@ -78,6 +85,7 @@ def main():
         info = json.loads(info_file.read_text(encoding="utf-8")) if info_file.is_file() else {}
         title = str(info.get("title") or match.group(2).replace("-", " ").title())[:100]
         created, updated = git_dates(folder.name)
+        version = version_of(folder, info)
         projects.append({
             "folder": folder.name,
             "date": match.group(1),
@@ -89,7 +97,8 @@ def main():
             "tags": [str(tag)[:45] for tag in info.get("tags", []) if isinstance(tag, str)][:8],
             "createdAt": created,
             "updatedAt": updated,
-            "version": version_of(folder, info),
+            "version": version,
+            "commit": commit,
         })
         # Built prototypes publish compiled assets; plain prototypes publish source.
         source = folder / "build" if (folder / "build" / "index.html").is_file() else folder
@@ -101,11 +110,13 @@ def main():
             shutil.copy2(app_theme, target / "testlab-theme.css")
         for page in target.rglob("*.html"):
             if "assets" not in page.relative_to(target).parts:
-                inject_shell(page, folder.name, app_theme.is_file())
+                inject_shell(page, folder.name, app_theme.is_file(), version, commit)
 
     (OUTPUT / "catalog.json").write_text(
-        json.dumps({"projects": projects}, indent=2) + "\n", encoding="utf-8"
+        json.dumps({"commit": commit, "projects": projects}, indent=2) + "\n", encoding="utf-8"
     )
+    (OUTPUT / "release.json").write_text(
+        json.dumps({"commit": commit, "projects": {p["folder"]: p["version"] for p in projects}}, indent=2) + "\\n", encoding="utf-8")
     print("Built Testlab:", len(projects), "prototype(s)")
     for project in projects:
         print(" -", project["folder"], project["version"],
