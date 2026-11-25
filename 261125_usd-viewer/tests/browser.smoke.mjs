@@ -21,7 +21,11 @@ test("built viewer imports mesh-free BRep, selects and opens ordinary USDA", {ti
   assert.match(await page.locator("#stats").textContent(),/1 files/);
   assert.equal(await page.locator("#viewActions").count(),0);
   await page.locator(".tree-row .name").nth(1).click();
-  assert.match(await page.locator("#details").innerText(),/CAD faces/);
+  assert.match(await page.locator("#details").innerText(),/CAD faces/);assert.match(await page.locator("#details").innerText(),/BRep body color/);
+  await page.keyboard.press("4");assert.match(await page.locator("#viewLabel").textContent(),/White \/ clay/);
+  await page.keyboard.press("5");assert.match(await page.locator("#viewLabel").textContent(),/Material/);
+  await page.keyboard.press("6");assert.match(await page.locator("#viewLabel").textContent(),/Random color/);
+  const left=page.locator(".left"),before=(await left.boundingBox()).width;const h=await page.locator("#resize-left").boundingBox();await page.mouse.move(h.x+h.width/2,h.y+30);await page.mouse.down();await page.mouse.move(h.x+h.width/2+55,h.y+30,{steps:5});await page.mouse.up();assert.ok((await left.boundingBox()).width>before+30);
   await page.keyboard.press("w");assert.match(await page.locator("#status").textContent(),/CAD edges on/);
   await page.keyboard.press("g");assert.match(await page.locator("#status").textContent(),/Grid hidden/);
   await page.keyboard.press("3");await page.waitForFunction(()=>document.querySelector("#status").textContent.includes("Tessellation: high"),{},{timeout:65000});

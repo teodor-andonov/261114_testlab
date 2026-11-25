@@ -17,9 +17,9 @@ export function readBreps(text,emit=()=>{},quality="normal"){
    const normals=mesh.normals?.length===corners.length&&mesh.normals.every(Number.isFinite)?new Float32Array(mesh.normals):null;
    const edges=s.edges(), lines=[];
    for(const e of edges){if(e.isSeam)continue;try{const n=e.geomType==="line"?1:q.segments;let a=e.pointAt(0);for(let j=1;j<=n;j++){const b=e.pointAt(j/n),p=[a.x,a.y,a.z,b.x,b.y,b.z];if(p.every(Number.isFinite))lines.push(...p);a=b;}}catch{}}
-   emit({name:s.name||"Body "+(i+1),kind:s instanceof sm.Part?"BRep solid":"BRep shell",faces:s.faces().length,edges:edges.length,volume:s instanceof sm.Part?s.volume:null,tolerance,corners,normals,lines:new Float32Array(lines)},i+1,shapes.length);
+   emit({name:s.name||"Body "+(i+1),kind:s instanceof sm.Part?"BRep solid":"BRep shell",faces:s.faces().length,edges:edges.length,volume:s instanceof sm.Part?s.volume:null,tolerance,color:s.color?Array.from(s.color):null,corners,normals,lines:new Float32Array(lines)},i+1,shapes.length);
   }
   return shapes.length;
  });
 }
-export function demoUsd(){return sm.scope(()=>sm.toUsd([(()=>{const p=sm.Box(80,60,14);return p.fillet(p.edges().parallelTo(sm.Z),4).cut(sm.Cylinder(9,30));})()],{mesh:false}));}
+export function demoUsd(){return sm.scope(()=>sm.toUsd([(()=>{const p=sm.Box(80,60,14);return p.fillet(p.edges().parallelTo(sm.Z),4).cut(sm.Cylinder(9,30)).named("Filleted plate").colored([0.28,0.53,0.72]);})()],{mesh:false,materials:true}));}
