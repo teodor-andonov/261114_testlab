@@ -21,11 +21,11 @@ try {
   const stored = JSON.parse(localStorage.getItem(PIN_KEY) || '[]');
   if (Array.isArray(stored)) pinned = new Set(stored.filter(value => typeof value === 'string'));
 } catch {}
-function togglePin(folder) {
+function togglePin(folder, restoreFocus = false) {
   if (pinned.has(folder)) pinned.delete(folder); else pinned.add(folder);
   try { localStorage.setItem(PIN_KEY, JSON.stringify([...pinned])); } catch {}
   render();
-  [...list.querySelectorAll('.pin-button')].find(button => button.dataset.folder === folder)?.focus({preventScroll:true});
+  if (restoreFocus) [...list.querySelectorAll('.pin-button')].find(button => button.dataset.folder === folder)?.focus({preventScroll:true});
 }
 window.addEventListener('storage', event => {
   if (event.key === VIEW_KEY) { view = views.includes(event.newValue) ? event.newValue : 'cards'; render(); return; }
@@ -137,7 +137,7 @@ function pinButton(project) {
   pin.setAttribute('aria-label', (isPinned ? 'Unpin ' : 'Pin ') + project.title);
   pin.title = isPinned ? 'Unpin prototype' : 'Pin prototype';
   pin.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-3 1-4 4v4l-2 2-7-7 2-2h4l4-4 1-3Z"/><path d="m8.5 15.5-5 5"/></svg>';
-  pin.addEventListener('click', () => togglePin(project.folder));
+  pin.addEventListener('click', event => togglePin(project.folder, event.detail === 0));
   return pin;
 }
 function projectTable(items) {
@@ -161,7 +161,66 @@ function projectTable(items) {
   }
   return table;
 }
+// Touch has no hover: hold an app to expose its pin without opening it.
+let hold = null;
+let revealed = null;
+let suppressLink = null;
+function clearHold() {
+  if (hold) clearTimeout(hold.timer);
+  hold = null;
+}
+function hideRevealed() {
+  revealed?.classList.remove('pin-revealed');
+  revealed = null;
+}
+function revealPin(link) {
+  const tile = link.closest('.project-tile, tr');
+  if (!tile) return;
+  hideRevealed();
+  revealed = tile;
+  tile.classList.add('pin-revealed');
+  suppressLink = link;
+}
+document.addEventListener('pointerdown', event => {
+  clearHold();
+  suppressLink = null;
+  if (revealed && !revealed.contains(event.target)) hideRevealed();
+  if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+  const link = event.target.closest('.project-card, .table-app');
+  if (!link || !list.contains(link)) return;
+  const start = {id:event.pointerId,x:event.clientX,y:event.clientY,link,timer:null};
+  start.timer = setTimeout(() => {
+    if (hold === start) revealPin(link);
+  }, 500);
+  hold = start;
+});
+document.addEventListener('pointermove', event => {
+  if (hold && event.pointerId === hold.id && Math.hypot(event.clientX-hold.x,event.clientY-hold.y) > 10) clearHold();
+}, {passive:true});
+for (const type of ['pointerup','pointercancel']) document.addEventListener(type, event => {
+  if (hold?.id === event.pointerId) clearHold();
+});
+list.addEventListener('contextmenu', event => {
+  const link = event.target.closest('.project-card, .table-app');
+  if (link && (hold?.link === link || suppressLink === link || event.pointerType === 'touch' || event.pointerType === 'pen')) {
+    event.preventDefault();
+    revealPin(link);
+    clearHold();
+  }
+});
+list.addEventListener('click', event => {
+  const link = event.target.closest('.project-card, .table-app');
+  if (link && suppressLink === link) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    suppressLink = null;
+  }
+}, true);
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideRevealed(); });
+
 function render() {
+  clearHold();
+  hideRevealed();
   const needle = search.value.trim().toLocaleLowerCase();
   const displayed = projects.filter(project => [project.title, project.description, project.folder, project.category, project.status, ...(project.tags || [])].some(value => String(value || '').toLocaleLowerCase().includes(needle)));
   displayed.sort((a,b) => Number(pinned.has(b.folder)) - Number(pinned.has(a.folder))
