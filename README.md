@@ -46,3 +46,6 @@ python3 -m http.server 4173 --directory dist
 ```
 
 Open http://localhost:4173/ . The hosted path resolves differently locally; use the published site to test the installed PWA. No backend is needed.
+
+### Gallery preferences
+Pin any card to keep it at the top of the gallery. Pins are saved in the current browser only; both pinned and unpinned groups are sorted newest-first by original prototype creation date.

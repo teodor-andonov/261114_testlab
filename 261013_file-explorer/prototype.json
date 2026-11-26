@@ -1,0 +1,13 @@
+{
+  "title": "File Explorer",
+  "description": "Local-first file and folder explorer (Fold).",
+  "category": "Files",
+  "tags": [
+    "PWA",
+    "File system"
+  ],
+  "status": "Prototype",
+  "monogram": "FE",
+  "version": "0.1.0-alpha.1",
+  "createdAt": "2026-10-13T15:34:04Z"
+}

@@ -1,0 +1,13 @@
+{
+  "title": "CAD Graph",
+  "description": "Visual dependency analysis of Python CAD projects, powered by Pyodide.",
+  "category": "CAD",
+  "tags": [
+    "Python",
+    "Graph"
+  ],
+  "status": "Prototype",
+  "monogram": "CG",
+  "version": "0.1.0-alpha.1",
+  "createdAt": "2026-10-12T21:32:42Z"
+}

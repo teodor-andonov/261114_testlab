@@ -35,6 +35,26 @@ if (location.hostname.endsWith('.github.io')) {
 }
 
 let projects = [];
+const PIN_KEY = 'testlab-pinned-prototypes';
+let pinned = new Set();
+try {
+  const stored = JSON.parse(localStorage.getItem(PIN_KEY) || '[]');
+  if (Array.isArray(stored)) pinned = new Set(stored.filter(value => typeof value === 'string'));
+} catch {}
+function togglePin(folder) {
+  if (pinned.has(folder)) pinned.delete(folder); else pinned.add(folder);
+  try { localStorage.setItem(PIN_KEY, JSON.stringify([...pinned])); } catch {}
+  render();
+  [...list.querySelectorAll('.pin-button')].find(button => button.dataset.folder === folder)?.focus({preventScroll:true});
+}
+window.addEventListener('storage', event => {
+  if (event.key !== PIN_KEY) return;
+  try {
+    const stored = JSON.parse(event.newValue || '[]');
+    pinned = new Set(Array.isArray(stored) ? stored.filter(value => typeof value === 'string') : []);
+    render();
+  } catch {}
+});
 const dateLabel = input => {
   const match = /^(\d{2})(\d{2})(\d{2})$/.exec(String(input));
   if (!match) return String(input);
@@ -94,11 +114,28 @@ function projectCard(project) {
   }
   bottom.append(category, titleRow, summary, facts);
   card.append(header, symbol, bottom);
-  return card;
+  const tile = document.createElement('div');
+  tile.className = 'project-tile';
+  const pin = document.createElement('button');
+  pin.type = 'button';
+  pin.className = 'pin-button';
+  pin.dataset.folder = project.folder;
+  const isPinned = pinned.has(project.folder);
+  pin.setAttribute('aria-pressed', String(isPinned));
+  pin.setAttribute('aria-label', (isPinned ? 'Unpin ' : 'Pin ') + project.title);
+  pin.title = isPinned ? 'Unpin prototype' : 'Pin prototype';
+  pin.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-3 1-4 4v4l-2 2-7-7 2-2h4l4-4 1-3Z"/><path d="m8.5 15.5-5 5"/></svg>';
+  pin.addEventListener('click', () => togglePin(project.folder));
+  tile.append(card, pin);
+  return tile;
 }
 function render() {
   const needle = search.value.trim().toLocaleLowerCase();
   const displayed = projects.filter(project => [project.title, project.description, project.folder, project.category, project.status, ...(project.tags || [])].some(value => String(value || '').toLocaleLowerCase().includes(needle)));
+  displayed.sort((a,b) => Number(pinned.has(b.folder)) - Number(pinned.has(a.folder))
+    || String(b.date).localeCompare(String(a.date))
+    || String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+    || a.folder.localeCompare(b.folder));
   list.replaceChildren(...displayed.map(projectCard));
   count.textContent = String(projects.length).padStart(2, '0');
   empty.hidden = displayed.length !== 0;
