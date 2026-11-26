@@ -14,7 +14,7 @@ function attrRef(ref){
   const point=ref.indexOf(".");
   return {node:point<0?ref:ref.slice(0,point),attr:point<0?"":ref.slice(point+1)};
 }
-function baseAttr(attr){return attr.replace(/\[.*$/,"");}
+function baseAttr(attr){return attr.split(/[.\[]/,1)[0];}
 function graph(source){
   const nodes=new Map(),aliases=new Map(),connections=[];
   let current=null;
