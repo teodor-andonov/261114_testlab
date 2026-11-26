@@ -1,13 +1,13 @@
 {
-  "title": "Audio \u2192 Text",
+  "title": "Audio → Text",
   "description": "English speech-to-text in your browser with Whisper Base or Small, editable transcripts and timestamps.",
   "category": "Speech recognition",
   "status": "Prototype",
-  "monogram": "AT",
   "tags": [
     "Audio",
     "Whisper",
     "English",
     "On-device"
-  ]
+  ],
+  "icon": "mic"
 }

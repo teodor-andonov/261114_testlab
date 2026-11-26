@@ -3,12 +3,12 @@
   "description": "File-first modular CAD workspace. Local project folders, Rhino inspection and Replicad parametric modelling.",
   "category": "CAD / design",
   "status": "Prototype",
-  "monogram": "CS",
   "tags": [
     "PWA",
     "Local files",
     "CAD",
     "WASM",
     "Modular"
-  ]
+  ],
+  "icon": "drafting-compass"
 }

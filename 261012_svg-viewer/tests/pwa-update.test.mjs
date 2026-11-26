@@ -53,17 +53,8 @@ test('an unrelated app cannot activate this worker',async()=>{
   assert.equal(result.activated,0);
   assert.deepEqual(result.response,{accepted:false});
 });
-test('client retains user choice and uses an app-specific safety guard',()=>{
-  assert.match(client,/window\.taPwaCanUpdate/);
-  assert.match(client,/Update now/);
-  assert.match(client,/'Later'/);
-  assert.match(client,/updatefound/);
-  assert.match(client,/controllerchange/);
-  assert.doesNotMatch(client,/visibilityState[^\n]+location.reload/);
-});
-
-test('update controls cannot collide with application selectors',()=>{
-  const ids=[...client.matchAll(/id="([^"]+)"/g)].map(match=>match[1]);
-  assert.ok(ids.length>=8);
-  assert.ok(ids.every(id=>id.startsWith('ta-pwa-')));
+test('client registers and checks for updates without a popup or forced reload',()=>{
+  assert.match(client,/serviceWorker\.register/);
+  assert.match(client,/registration\.update/);
+  assert.doesNotMatch(client,/attachShadow|createElement|Update now|location\.reload|skipWaiting/);
 });

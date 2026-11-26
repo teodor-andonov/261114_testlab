@@ -3,12 +3,12 @@
   "description": "Local Maya ASCII and experimental binary static mesh importer, subdivision preview, Rhino 3DM geometry, materials, layers and groups.",
   "category": "Computational design",
   "status": "Experiment",
-  "monogram": "MR",
   "tags": [
     "Maya",
     "Rhino",
     "SubD",
     "3DM",
     "Local-first"
-  ]
+  ],
+  "icon": "file-box"
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f8f8f6">
+  <meta name="theme-color" content="#f7f7f7">
   <meta name="color-scheme" content="light dark">
   <script>
     (() => {
@@ -12,7 +12,7 @@
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         const theme = saved === 'light' || saved === 'dark' ? saved : (prefersDark ? 'dark' : 'light');
         document.documentElement.dataset.theme = theme;
-        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#141715' : '#f8f8f6';
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#171717' : '#f7f7f7';
       } catch { document.documentElement.dataset.theme = 'light'; }
     })();
   </script>
@@ -23,37 +23,33 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Testlab">
   <link rel="stylesheet" href="./site.css">
+  <link rel="stylesheet" href="./prototype-shell.css">
   <title>Testlab · App Prototypes</title>
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
-      <a href="./" class="brand" aria-label="Testlab home"><span class="mark" aria-hidden="true">T<span class="mark-dot">.</span></span><span class="brand-name">TESTLAB</span></a>
-      <div class="header-right"><span class="header-type">PROTOTYPE INDEX</span><button id="themeToggle" type="button" class="theme-switch" aria-label="Dark mode" aria-pressed="false" title="Toggle dark mode"><span aria-hidden="true">☾</span></button><button id="installButton" type="button" class="source-link install-link" hidden>Install <span aria-hidden="true">↓</span></button><a id="repoLink" class="source-link" href="https://github.com/teodor-andonov/261114_testlab" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a></div>
+      <a href="./" class="brand" aria-label="Testlab home" title="Testlab"><span class="brand-icon" aria-hidden="true"></span></a>
+      <button id="installButton" type="button" class="install-link" hidden>Install</button>
     </header>
     <main>
-      <section class="hero" aria-labelledby="page-title">
-        <p class="eyebrow"><span class="online-dot"></span> INDEPENDENT EXPERIMENTS <span class="sep">/</span> EST. 2026</p>
-        <h1 id="page-title">The test lab<span class="period">.</span></h1>
-        <p class="lead">A collection of small web experiments, tools and prototypes. Each project stands on its own, ready to open and try.</p>
-      </section>
       <section class="projects" aria-labelledby="projects-heading">
         <div class="section-header">
           <div class="section-label"><h2 id="projects-heading">Prototypes</h2><span id="projectCount" class="count">01</span></div>
-          <label class="search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input type="search" id="filterInput" placeholder="Filter prototypes" aria-label="Filter prototypes" autocomplete="off"></label>
+          <div class="gallery-tools"><div id="viewControls" class="view-controls" role="group" aria-label="Prototype view"><button type="button" data-view="cards" title="Large cards" aria-label="Large cards"><span class="view-icon" style="--icon:url('./icons/lucide/layout-grid.svg')"></span></button><button type="button" data-view="small" title="Small cards" aria-label="Small cards"><span class="view-icon" style="--icon:url('./icons/lucide/grid-3x3.svg')"></span></button><button type="button" data-view="list" title="List" aria-label="List"><span class="view-icon" style="--icon:url('./icons/lucide/list.svg')"></span></button><button type="button" data-view="table" title="Table" aria-label="Table"><span class="view-icon" style="--icon:url('./icons/lucide/table.svg')"></span></button></div><label class="search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input type="search" id="filterInput" placeholder="Filter prototypes" aria-label="Filter prototypes" autocomplete="off"></label></div>
         </div>
         <div id="prototypeList" class="project-grid">
           <a class="project-card" href="./261114_linkbook/">
             <div class="card-head"><span class="card-number">261114</span><span class="status"><span class="status-dot"></span> ACTIVE</span></div>
-            <div class="card-symbol" aria-hidden="true">LB</div>
+            <div class="card-symbol" aria-hidden="true"><span class="app-icon" style="--icon:url('./icons/lucide/book-marked.svg')"></span></div>
             <div class="card-bottom"><div class="card-category">LOCAL-FIRST · WEB</div><div class="card-title-row"><h3>Linkbook</h3><span class="visit-arrow" aria-hidden="true">↗</span></div><p>Save and organise bookmarks, with local storage and custom covers.</p></div>
           </a>
         </div>
         <p class="empty" id="emptyNotice" hidden>No prototypes match that search.</p>
       </section>
     </main>
-    <footer><span>TESTLAB <span class="footer-divider">/</span> QUICK IDEAS, WORKING PROTOTYPES</span><span>STATIC BY DESIGN · GITHUB PAGES</span></footer>
   </div>
+  <script defer src="./prototype-shell.js"></script>
   <script type="module" src="./site.js"></script>
 </body>
 </html>

@@ -1,40 +1,20 @@
-
-const themeToggle = document.getElementById('themeToggle');
-const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
-const savedTheme = () => {
-  try { const value = localStorage.getItem('testlab-theme'); return value === 'light' || value === 'dark' ? value : null; }
-  catch { return null; }
-};
-function setTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  themeToggle.setAttribute('aria-pressed', String(theme === 'dark'));
-  themeToggle.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
-  themeToggle.querySelector('span').textContent = theme === 'dark' ? '☀' : '☾';
-  if (themeColorMeta) themeColorMeta.content = theme === 'dark' ? '#141715' : '#f8f8f6';
-}
-setTheme(savedTheme() || (themeMedia.matches ? 'dark' : 'light'));
-themeToggle.addEventListener('click', () => {
-  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  try { localStorage.setItem('testlab-theme', next); } catch { /* preference is optional */ }
-  setTheme(next);
-});
-themeMedia.addEventListener?.('change', e => { if (!savedTheme()) setTheme(e.matches ? 'dark' : 'light'); });
-
 const list = document.getElementById('prototypeList');
 const count = document.getElementById('projectCount');
 const search = document.getElementById('filterInput');
 const empty = document.getElementById('emptyNotice');
-const repoLink = document.getElementById('repoLink');
-
-// On GitHub Pages, the first URL segment is the project repository name.
-// This keeps the source link correct across a repository rename.
-if (location.hostname.endsWith('.github.io')) {
-  const name = location.pathname.split('/').filter(Boolean)[0];
-  if (name) repoLink.href = `https://github.com/teodor-andonov/${encodeURIComponent(name)}`;
-}
-
 let projects = [];
+const VIEW_KEY = 'testlab-gallery-view';
+const views = ['cards','small','list','table'];
+let view = 'cards';
+try { const stored = localStorage.getItem(VIEW_KEY); if (views.includes(stored)) view = stored; } catch {}
+const viewControls = document.getElementById('viewControls');
+function setView(next) {
+  if (!views.includes(next)) return;
+  view = next;
+  try { localStorage.setItem(VIEW_KEY, view); } catch {}
+  render();
+}
+viewControls.addEventListener('click', event => { const button = event.target.closest('button[data-view]'); if (button) setView(button.dataset.view); });
 const PIN_KEY = 'testlab-pinned-prototypes';
 let pinned = new Set();
 try {
@@ -48,6 +28,7 @@ function togglePin(folder) {
   [...list.querySelectorAll('.pin-button')].find(button => button.dataset.folder === folder)?.focus({preventScroll:true});
 }
 window.addEventListener('storage', event => {
+  if (event.key === VIEW_KEY) { view = views.includes(event.newValue) ? event.newValue : 'cards'; render(); return; }
   if (event.key !== PIN_KEY) return;
   try {
     const stored = JSON.parse(event.newValue || '[]');
@@ -69,10 +50,21 @@ const timestampLabel = value => {
     hour: '2-digit', minute: '2-digit'
   }).format(date);
 };
+function iconElement(project) {
+  const span = document.createElement('span');
+  span.className = 'app-icon';
+  span.setAttribute('aria-hidden','true');
+  const name = /^[a-z0-9-]+$/.test(project.icon || '') ? project.icon : 'box';
+  span.style.setProperty('--icon', "url('./icons/lucide/" + name + ".svg')");
+  return span;
+}
+function projectHref(project) {
+  return './' + encodeURIComponent(project.folder) + '/' + (project.commit ? '?v=' + encodeURIComponent(project.commit.slice(0,7)) : '');
+}
 function projectCard(project) {
   const card = document.createElement('a');
   card.className = 'project-card';
-  card.href = `./${encodeURIComponent(project.folder)}/${project.commit ? "?v=" + encodeURIComponent(project.commit.slice(0,7)) : ""}`;
+  card.href = projectHref(project);
   const header = document.createElement('div');
   header.className = 'card-head';
   const number = document.createElement('span');
@@ -86,7 +78,7 @@ function projectCard(project) {
   header.append(number, status);
   const symbol = document.createElement('div');
   symbol.className = 'card-symbol'; symbol.setAttribute('aria-hidden', 'true');
-  symbol.textContent = project.monogram || (project.title || '?').slice(0, 2).toUpperCase();
+  symbol.append(iconElement(project));
   const bottom = document.createElement('div');
   bottom.className = 'card-bottom';
   const category = document.createElement('div');
@@ -116,6 +108,10 @@ function projectCard(project) {
   card.append(header, symbol, bottom);
   const tile = document.createElement('div');
   tile.className = 'project-tile';
+  tile.append(card, pinButton(project));
+  return tile;
+}
+function pinButton(project) {
   const pin = document.createElement('button');
   pin.type = 'button';
   pin.className = 'pin-button';
@@ -126,8 +122,28 @@ function projectCard(project) {
   pin.title = isPinned ? 'Unpin prototype' : 'Pin prototype';
   pin.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-3 1-4 4v4l-2 2-7-7 2-2h4l4-4 1-3Z"/><path d="m8.5 15.5-5 5"/></svg>';
   pin.addEventListener('click', () => togglePin(project.folder));
-  tile.append(card, pin);
-  return tile;
+  return pin;
+}
+function projectTable(items) {
+  const table = document.createElement('table');
+  table.className = 'prototype-table';
+  const head = table.createTHead().insertRow();
+  for (const label of ['App','Category','Created','Updated','Version','Status','Pin']) {
+    const th = document.createElement('th'); th.scope = 'col'; th.textContent = label; head.append(th);
+  }
+  const body = table.createTBody();
+  for (const project of items) {
+    const row = body.insertRow();
+    const titleCell = row.insertCell();
+    const link = document.createElement('a'); link.href = projectHref(project);
+    link.className = 'table-app'; link.append(iconElement(project), document.createTextNode(project.title));
+    titleCell.append(link);
+    for (const value of [project.category, timestampLabel(project.createdAt), timestampLabel(project.updatedAt), project.version ? 'v'+project.version : '—', project.status]) {
+      row.insertCell().textContent = value || '—';
+    }
+    row.insertCell().append(pinButton(project));
+  }
+  return table;
 }
 function render() {
   const needle = search.value.trim().toLocaleLowerCase();
@@ -136,7 +152,9 @@ function render() {
     || String(b.date).localeCompare(String(a.date))
     || String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
     || a.folder.localeCompare(b.folder));
-  list.replaceChildren(...displayed.map(projectCard));
+  list.dataset.view = view;
+  for (const button of viewControls.querySelectorAll('button[data-view]')) button.setAttribute('aria-pressed', String(button.dataset.view === view));
+  list.replaceChildren(...(view === 'table' && displayed.length ? [projectTable(displayed)] : displayed.map(projectCard)));
   count.textContent = String(projects.length).padStart(2, '0');
   empty.hidden = displayed.length !== 0;
 }

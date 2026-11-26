@@ -7,7 +7,7 @@
     "PWA"
   ],
   "status": "Prototype",
-  "monogram": "MM",
-  "version": "0.1.0-alpha.1",
-  "createdAt": "2026-10-19T16:41:20Z"
+  "version": "0.1.1",
+  "createdAt": "2026-10-19T16:41:20Z",
+  "icon": "git-fork"
 }

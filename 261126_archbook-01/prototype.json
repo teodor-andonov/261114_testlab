@@ -3,11 +3,11 @@
   "description": "File-first architectural design-to-presentation workspace: independent computational models, shared objects, views and sheets.",
   "category": "Computational design",
   "status": "Prototype",
-  "monogram": "AB",
   "tags": [
     "PWA",
     "SMLib",
     "Replicad",
     "File-first"
-  ]
+  ],
+  "icon": "book-open"
 }
