@@ -1,6 +1,6 @@
 // Geometry-only subset of Maya ASCII; does not execute Maya's dependency graph.
-function commands(text) {
-  const out=[];let buffer="",quote="",escaped=false,line=false,block=false;
+function* commands(text) {
+  let buffer="",quote="",escaped=false,line=false,block=false;
   for(let i=0;i<text.length;i++){
     const c=text[i],n=text[i+1];
     if(line){if(c==="\n"){line=false;buffer+=" ";}continue;}
@@ -9,11 +9,10 @@ function commands(text) {
     if(c==="/"&&n==="/"){line=true;i++;continue;}
     if(c==="/"&&n==="*"){block=true;i++;continue;}
     if(c==='"'||c==="'"){quote=c;buffer+=c;continue;}
-    if(c===";"){if(buffer.trim())out.push(buffer.trim());buffer="";continue;}
+    if(c===";"){if(buffer.trim())yield buffer.trim();buffer="";continue;}
     buffer+=c;
   }
-  if(buffer.trim())out.push(buffer.trim());
-  return out;
+  if(buffer.trim())yield buffer.trim();
 }
 function tokenize(text) {
   return (text.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s]+/g)||[])

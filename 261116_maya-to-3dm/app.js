@@ -283,6 +283,7 @@ function showResults(){
   renderMeshDetails();
   renderLayerTree();
   renderNotices();
+  if(!objects.length&&baked.warnings.length)$("notice-panel").open=true;
   applyVisibility();
   const materialCount=new Set(objects.map(o=>o.materialName).filter(Boolean)).size;
   status(objects.length?"Ready to export · "+objects.length+" meshes · "+materialCount+" materials":
@@ -306,6 +307,7 @@ async function openFile(file){
   if(exportController)exportController.abort();
   importWorker?.terminate();
   currentFile=file;parsed=null;baked=null;layers=[];clearGeometry();
+  $("warnings").replaceChildren();$("notice-panel").hidden=true;
   currentName=file.name;
   safeText($("file-name"),file.name);
   safeText($("file-info"),(file.size/1024/1024).toFixed(2)+" MB · Maya "+(/\.mb$/i.test(file.name)?"Binary (experimental)":"ASCII"));
@@ -318,13 +320,17 @@ async function openFile(file){
     if(importWorker!==worker)return;
     worker.terminate();importWorker=null;
     $("empty").hidden=false;status(message,"error");
+    $("notice-panel").hidden=false;$("notice-panel").open=true;
+    safeText($("notice-count"),1);safeText($("warnings"),message);
   }
   worker.onerror=e=>fail(e.message||"Import worker failed");
   worker.onmessage=({data})=>{
     if(importWorker!==worker)return;
+    if(data.stage){status(data.stage,"pending");return;}
     if(data.error){fail(data.error);return;}
     worker.terminate();importWorker=null;
     parsed=data.parsed;
+    status("Building viewport…","pending");
     try{rebuild();}catch(e){parsed=null;baked=null;clearGeometry();$("empty").hidden=false;status(e.message||String(e),"error");}
   };
   worker.postMessage({file,axis:$("axis").value});
