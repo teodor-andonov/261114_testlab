@@ -1,7 +1,5 @@
 import * as THREE from "three";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
-import {parseMayaAscii} from "./maya-parser.js";
-import {applyMayaAppearance} from "./maya-appearance.js";
 import {prepareMeshes} from "./subdivide.js";
 import {exportMesh3dm} from "./rhino-export.js";
 import {layerCatalog,layerColor,objectLayerKey,visibleOnLayer,applyLayerMode} from "./layers.js";
@@ -35,9 +33,9 @@ light(0xffe6ce,0.45,[1,10,3]);
 const modelGroup=new THREE.Group();
 scene.add(modelGroup);
 let groundGrid=null;
-let sourceText="",currentName="maya-geometry.ma",parsed=null,baked=null;
+let currentFile=null,currentName="maya-geometry.ma",parsed=null,baked=null;
 let layers=[],expanded=new Set(),visibility=new Map(),layerGroups=new Map();
-let exportController=null;
+let exportController=null,importWorker=null;
 
 function safeText(el,value){el.textContent=String(value);}
 function status(message,kind="ok"){
@@ -82,7 +80,8 @@ function addMesh(object){
   const rgb=object.materialColor||object.layerColor||layerColor(key);
   const color=new THREE.Color("rgb("+rgb.r+","+rgb.g+","+rgb.b+")");
   const material=new THREE.MeshStandardMaterial({
-    color,metalness:0.0,roughness:0.82,side:THREE.DoubleSide,
+    color,metalness:object.materialProperties?.metallic??0,roughness:object.materialProperties?.roughness??0.82,side:THREE.DoubleSide,
+    opacity:object.materialProperties?.opacity??1,transparent:(object.materialProperties?.opacity??1)<1,
     flatShading:false
   });
   const mesh=new THREE.Mesh(geometry,material);
@@ -285,7 +284,8 @@ function showResults(){
   renderLayerTree();
   renderNotices();
   applyVisibility();
-  status(objects.length?"Ready to export · "+objects.length+" meshes":
+  const materialCount=new Set(objects.map(o=>o.materialName).filter(Boolean)).size;
+  status(objects.length?"Ready to export · "+objects.length+" meshes · "+materialCount+" materials":
     "No supported polygon geometry in this file.",objects.length?"ok":"warning");
 }
 function rebuild(){
@@ -299,31 +299,35 @@ function rebuild(){
   renderObjects();
   showResults();
 }
-function refreshAxis(){
-  if(!sourceText)return;
-  parsed=applyMayaAppearance(parseMayaAscii(sourceText,{upAxis:$("axis").value}),sourceText);
-  rebuild();
-}
+function refreshAxis(){if(currentFile)openFile(currentFile);}
 async function openFile(file){
   if(!file)return;
-  if(!file.name.toLowerCase().endsWith(".ma")){
-    status("Choose an Autodesk Maya ASCII .ma file.","error");return;
-  }
+  if(!/\.(ma|mb)$/i.test(file.name)){status("Choose a Maya .ma or .mb file.","error");return;}
   if(exportController)exportController.abort();
+  importWorker?.terminate();
+  currentFile=file;parsed=null;baked=null;layers=[];clearGeometry();
   currentName=file.name;
   safeText($("file-name"),file.name);
-  safeText($("file-info"),(file.size/1024/1024).toFixed(2)+" MB · Maya ASCII");
-  status("Reading geometry…","pending");
+  safeText($("file-info"),(file.size/1024/1024).toFixed(2)+" MB · Maya "+(/\.mb$/i.test(file.name)?"Binary (experimental)":"ASCII"));
+  status("Reading geometry locally…","pending");
   $("export-button").disabled=true;
   visibility=new Map();expanded=new Set();
-  try{
-    sourceText=await file.text();
-    refreshAxis();
-  }catch(error){
-    parsed=null;baked=null;layers=[];clearGeometry();
-    $("empty").hidden=false;
-    status(error.message||String(error),"error");
+  const worker=new Worker(new URL("./import.worker.js",import.meta.url),{type:"module"});
+  importWorker=worker;
+  function fail(message){
+    if(importWorker!==worker)return;
+    worker.terminate();importWorker=null;
+    $("empty").hidden=false;status(message,"error");
   }
+  worker.onerror=e=>fail(e.message||"Import worker failed");
+  worker.onmessage=({data})=>{
+    if(importWorker!==worker)return;
+    if(data.error){fail(data.error);return;}
+    worker.terminate();importWorker=null;
+    parsed=data.parsed;
+    try{rebuild();}catch(e){parsed=null;baked=null;clearGeometry();$("empty").hidden=false;status(e.message||String(e),"error");}
+  };
+  worker.postMessage({file,axis:$("axis").value});
 }
 function download(data,filename){
   const url=URL.createObjectURL(new Blob([data],{type:"application/octet-stream"}));
@@ -348,8 +352,8 @@ async function exportCurrent(){
       signal:controller.signal,
       onProgress:(done,total)=>status("Writing mesh "+done+" / "+total+"…","pending")
     });
-    download(result.bytes,currentName.replace(/\.ma$/i,"")+".3dm");
-    status("Exported "+result.exported+" meshes · "+result.layers+" Rhino layers · "+result.groups+" groups"+
+    download(result.bytes,currentName.replace(/\.(ma|mb)$/i,"")+".3dm");
+    status("Exported "+result.exported+" meshes · "+result.layers+" Rhino layers · "+result.groups+" groups · "+result.materials+" materials"+
       (result.skipped.length?" · "+result.skipped.length+" skipped":""),result.skipped.length?"warning":"ok");
     if(result.skipped.length){baked.warnings.push(...result.skipped);renderNotices();}
   }catch(error){

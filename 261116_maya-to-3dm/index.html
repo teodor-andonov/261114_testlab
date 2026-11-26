@@ -18,8 +18,8 @@
         </div>
       </div>
       <div class="top-actions">
-        <label class="button primary" for="file-input">Open .ma</label>
-        <input id="file-input" type="file" accept=".ma,text/plain" hidden>
+        <label class="button primary" for="file-input">Open .ma / .mb</label>
+        <input id="file-input" type="file" accept=".ma,.mb" hidden>
         <label class="choice">Smooth
           <select id="detail" aria-label="Subdivision levels">
             <option value="maya" selected>As Maya</option>
@@ -40,9 +40,9 @@
         <canvas id="viewport"></canvas>
         <div class="empty" id="empty">
           <div class="drop-icon">⬡</div>
-          <h2>Drop a Maya ASCII file</h2>
+          <h2>Drop a Maya scene</h2>
           <p>Explore geometry, switch groups on and off, then export subdivided Rhino meshes organised in layers.</p>
-          <label class="button primary" for="file-input">Choose .ma file</label>
+          <label class="button primary" for="file-input">Choose .ma / .mb file</label>
         </div>
         <div class="viewer-tools">
           <label class="toggle"><input type="checkbox" id="wireframe"> Edges</label>
@@ -55,7 +55,7 @@
         <div class="file-section">
           <div class="eyebrow">SOURCE</div>
           <h2 id="file-name">No file loaded</h2>
-          <div class="subtle" id="file-info">Autodesk Maya ASCII (.ma)</div>
+          <div class="subtle" id="file-info">Autodesk Maya (.ma / .mb experimental)</div>
           <div id="status" class="status" role="status" aria-live="polite">Waiting for a file.</div>
         </div>
         <div class="stats-strip" aria-label="Scene statistics">

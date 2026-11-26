@@ -25,8 +25,9 @@ export function exportMesh3dm(model,{onProgress=()=>{},signal}={}){
         worker.postMessage({type:"mesh",object:{
           name:object.name,path:object.path,layerName:object.layerName,
           layerColor:object.layerColor,materialName:object.materialName,
-          materialColor:object.materialColor,
-          vertices:object.vertices,faces:object.faces
+          materialColor:object.materialColor,materialProperties:object.materialProperties,
+          materialTexture:object.materialTexture,
+          vertices:object.vertices,faces:object.faces,faceUVs:object.faceUVs
         }});
       }else worker.postMessage({type:"finish"});
     };
