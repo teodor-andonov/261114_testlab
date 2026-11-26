@@ -29,25 +29,26 @@
 <body>
   <div class="shell">
     <header class="topbar">
-      <a href="./" class="brand" aria-label="Testlab home" title="Testlab"><span class="brand-icon" aria-hidden="true"></span></a>
+      <a href="./" class="brand" aria-label="Testlab home" title="Testlab"><span class="brand-mark"><span class="brand-icon" aria-hidden="true"></span></span><span class="brand-name">Testlab</span></a>
       <button id="installButton" type="button" class="install-link" hidden>Install</button>
     </header>
     <main>
       <section class="projects" aria-labelledby="projects-heading">
         <div class="section-header">
           <div class="section-label"><h2 id="projects-heading">Prototypes</h2><span id="projectCount" class="count">01</span></div>
-          <div class="gallery-tools"><div id="viewControls" class="view-controls" role="group" aria-label="Prototype view"><button type="button" data-view="cards" title="Large cards" aria-label="Large cards"><span class="view-icon" style="--icon:url('./icons/lucide/layout-grid.svg')"></span></button><button type="button" data-view="small" title="Small cards" aria-label="Small cards"><span class="view-icon" style="--icon:url('./icons/lucide/grid-3x3.svg')"></span></button><button type="button" data-view="list" title="List" aria-label="List"><span class="view-icon" style="--icon:url('./icons/lucide/list.svg')"></span></button><button type="button" data-view="table" title="Table" aria-label="Table"><span class="view-icon" style="--icon:url('./icons/lucide/table.svg')"></span></button></div><label class="search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input type="search" id="filterInput" placeholder="Filter prototypes" aria-label="Filter prototypes" autocomplete="off"></label></div>
+          <div class="gallery-tools"><div id="viewControls" class="view-controls" role="group" aria-label="Prototype view"><button type="button" data-view="cards" title="Large cards" aria-label="Large cards"><span class="view-icon" style="--icon:url('./icons/lucide/layout-grid.svg')"></span></button><button type="button" data-view="small" title="Small cards" aria-label="Small cards"><span class="view-icon" style="--icon:url('./icons/lucide/grid-3x3.svg')"></span></button><button type="button" data-view="icons" title="Icons" aria-label="Icons"><span class="view-icon" style="--icon:url('./icons/lucide/grip.svg')"></span></button><button type="button" data-view="list" title="List" aria-label="List"><span class="view-icon" style="--icon:url('./icons/lucide/list.svg')"></span></button><button type="button" data-view="table" title="Table" aria-label="Table"><span class="view-icon" style="--icon:url('./icons/lucide/table.svg')"></span></button></div><label class="search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input type="search" id="filterInput" placeholder="Filter prototypes" aria-label="Filter prototypes" autocomplete="off"></label></div>
         </div>
         <div id="prototypeList" class="project-grid">
           <a class="project-card" href="./261114_linkbook/">
             <div class="card-head"><span class="card-number">261114</span><span class="status"><span class="status-dot"></span> ACTIVE</span></div>
             <div class="card-symbol" aria-hidden="true"><span class="app-icon" style="--icon:url('./icons/lucide/book-marked.svg')"></span></div>
-            <div class="card-bottom"><div class="card-category">LOCAL-FIRST · WEB</div><div class="card-title-row"><h3>Linkbook</h3><span class="visit-arrow" aria-hidden="true">↗</span></div><p>Save and organise bookmarks, with local storage and custom covers.</p></div>
+            <div class="card-bottom"><div class="card-category">LOCAL-FIRST · WEB</div><div class="card-title-row"><h3>Linkbook</h3></div><p>Save and organise bookmarks, with local storage and custom covers.</p></div>
           </a>
         </div>
         <p class="empty" id="emptyNotice" hidden>No prototypes match that search.</p>
       </section>
     </main>
+    <footer><span>TESTLAB <span class="footer-divider">/</span> QUICK IDEAS, WORKING PROTOTYPES</span><span>STATIC BY DESIGN · GITHUB PAGES</span></footer>
   </div>
   <script defer src="./prototype-shell.js"></script>
   <script type="module" src="./site.js"></script>
