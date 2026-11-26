@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -67,6 +68,7 @@ def inject_shell(index_file, folder_name, has_theme, version, commit):
 
 
 def main():
+    subprocess.run([sys.executable, str(ROOT / '.github/scripts/check_migrated_apps.py')], cwd=ROOT, check=True)
     if OUTPUT.exists():
         shutil.rmtree(OUTPUT)
     OUTPUT.mkdir()
@@ -85,6 +87,8 @@ def main():
         info = json.loads(info_file.read_text(encoding="utf-8")) if info_file.is_file() else {}
         title = str(info.get("title") or match.group(2).replace("-", " ").title())[:100]
         created, updated = git_dates(folder.name)
+        # Migrated apps retain their original repository creation date.
+        created = info.get('createdAt') or created
         version = version_of(folder, info)
         projects.append({
             "folder": folder.name,
@@ -112,6 +116,7 @@ def main():
             if "assets" not in page.relative_to(target).parts:
                 inject_shell(page, folder.name, app_theme.is_file(), version, commit)
 
+    projects.sort(key=lambda p: (p["date"], p["createdAt"] or "", p["folder"]), reverse=True)
     (OUTPUT / "catalog.json").write_text(
         json.dumps({"commit": commit, "projects": projects}, indent=2) + "\n", encoding="utf-8"
     )

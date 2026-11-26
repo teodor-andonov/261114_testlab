@@ -1,0 +1,86 @@
+:root {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  --canvas: #f2f2f0;
+  --foreground: #1c1e1c;
+  --muted: #777e79;
+  --bar: rgba(255,255,255,.94);
+  --bar-border: rgba(20,30,20,.09);
+  --separator: #e1e3e0;
+  --pressed: #eaece9;
+  --toast-bg: #242826;
+  --toast-fg: #fff;
+  color-scheme: light;
+  color: var(--foreground);
+  background: var(--canvas);
+}
+:root[data-theme="dark"] {
+  --canvas: #191c1b;
+  --foreground: #eff1ee;
+  --muted: #a4aba5;
+  --bar: rgba(43,47,44,.96);
+  --bar-border: rgba(255,255,255,.10);
+  --separator: #464c47;
+  --pressed: #424842;
+  --toast-bg: #edf1ec;
+  --toast-fg: #1b201c;
+  color-scheme: dark;
+}
+*,*::before,*::after {box-sizing:border-box}
+html,body,#app {margin:0;width:100%;height:100%;height:100dvh;overflow:hidden}
+button {font:inherit;color:inherit;cursor:pointer}
+button:focus-visible {outline:2px solid #6584f6;outline-offset:2px}
+button svg {display:block;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+[hidden] {display:none!important}
+.visually-hidden {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.stage {position:absolute;inset:0;background:var(--canvas);touch-action:none;overflow:hidden;overscroll-behavior:none;user-select:none;cursor:default;transition:background-color .18s ease}
+.stage.has-artwork {cursor:grab}
+.stage.is-dragging {cursor:grabbing}
+.artwork {position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;pointer-events:none}
+.artwork img {display:block;max-width:none;max-height:none;user-select:none;pointer-events:none}
+.toolbar {
+  position:absolute;z-index:11;left:50%;transform:translateX(-50%);
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  max-width:calc(100vw - 20px);
+  display:flex;align-items:center;gap:3px;padding:5px 7px;
+  border:1px solid var(--bar-border);border-radius:14px;
+  background:var(--bar);color:var(--foreground);
+  box-shadow:0 8px 32px rgba(0,0,0,.13);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)
+}
+.file-name-button {
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
+  gap:2px;min-width:82px;max-width:min(260px,35vw);height:44px;padding:0 10px;
+  border:0;border-radius:9px;background:transparent;text-align:left
+}
+.file-name,.file-location {display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-name {font-size:12px;font-weight:660;letter-spacing:-.01em}
+.file-location {font-size:10px;font-weight:450;color:var(--muted)}
+.file-name-button:active,.tool-button:active,.zoom-label:active {background:var(--pressed)}
+.tool-button,.zoom-label {display:grid;place-items:center;flex-shrink:0;height:44px;min-width:42px;border:0;border-radius:9px;background:transparent;touch-action:manipulation}
+.tool-button svg {width:19px;height:19px}
+.zoom-label {min-width:53px;padding:0 4px;font-variant-numeric:tabular-nums;font-size:12px;font-weight:650;letter-spacing:-.01em}
+.tool-divider {height:23px;width:1px;flex:0 0 1px;background:var(--separator);margin:0 3px}
+.theme-button .sun-icon {display:none}
+:root[data-theme="dark"] .theme-button .moon-icon {display:none}
+:root[data-theme="dark"] .theme-button .sun-icon {display:block}
+.toast {
+  position:absolute;z-index:30;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));
+  transform:translate(-50%,10px);max-width:calc(100vw - 36px);
+  padding:11px 15px;border-radius:10px;
+  color:var(--toast-fg);background:var(--toast-bg);
+  text-align:center;line-height:1.4;font-size:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;pointer-events:none;
+  transition:opacity .16s,transform .16s
+}
+.toast.visible {opacity:1;transform:translate(-50%,0)}
+@media(max-width:370px) {
+  .toolbar {gap:1px;padding:4px}
+  .file-name-button {min-width:65px;max-width:calc(100vw - 224px);padding:0 6px}
+  .tool-button {min-width:39px}
+  .zoom-label {min-width:46px}
+  .tool-divider {margin:0 2px}
+}
+@media(prefers-reduced-motion:reduce) {*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}

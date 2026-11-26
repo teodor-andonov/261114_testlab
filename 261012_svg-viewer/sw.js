@@ -1,0 +1,67 @@
+/* Offline app shell and on-device SVG share handoff. */
+const CACHE='testlab-svg-viewer-shell-v5-ta-names-2-ta-update-v5';;
+const INBOX='testlab-svg-viewer-inbox-v1';
+const ASSETS=['./pwa-update.js','./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./sample.svg','./icons/icon.svg','./icons/icon.svg?v=5','./icons/icon-192-v5.png','./icons/icon-512-v5.png','./icons/icon-maskable-192-v5.png','./icons/icon-maskable-512-v5.png'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));});
+self.addEventListener('activate',e=>{e.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(k=>(k.startsWith('testlab-svg-viewer-shell-'))&&k!==CACHE).map(k=>caches.delete(k)))),self.clients.claim()]));});
+self.addEventListener('fetch',e=>{
+  const url=new URL(e.request.url),scope=new URL(self.registration.scope);
+  if(e.request.method==='POST'&&url.origin===scope.origin&&url.pathname===scope.pathname&&url.searchParams.has('share-target')){
+    e.respondWith((async()=>{
+      let ok=false;
+      try{
+        const form=await e.request.formData(),file=form.get('svg');
+        if(file&&typeof file.arrayBuffer==='function'&&(/\.svg$/i.test(file.name||'')||file.type==='image/svg+xml')){
+          const inbox=await caches.open(INBOX);
+          await inbox.put(new URL('./__shared_svg__',self.registration.scope),new Response(file,{headers:{'Content-Type':'image/svg+xml','X-SVG-Filename':encodeURIComponent(file.name||'Shared.svg')}}));
+          ok=true;
+        }
+      }catch(err){console.warn('SVG share failed',err);}
+      return Response.redirect(new URL(ok?'./?shared=1':'./?shared=missing',self.registration.scope),303);
+    })());
+    return;
+  }
+  if(e.request.method!=='GET'||url.origin!==scope.origin||!url.pathname.startsWith(scope.pathname))return;
+  e.respondWith((async()=>{
+    // Query string navigation (e.g. share redirect) also works offline.
+    const lookup=url.pathname===scope.pathname?new URL('./',scope):e.request;
+    const cached=await (await caches.open(CACHE)).match(lookup);
+    return cached||fetch(e.request);
+  })());
+});
+
+/* TA PWA update worker v1. Append to sw.js (classic or module). */
+(() => {
+  let updating = false;
+  self.addEventListener('message', event => {
+    if (event.data?.type !== 'TA_UPDATE_APPLY') return;
+    const reply = accepted => event.ports[0]?.postMessage({accepted});
+    if (updating || !event.source?.url?.startsWith(self.registration.scope)) { reply(false); return; }
+    updating = true;
+    event.waitUntil((async () => {
+      let windows = [];
+      try {
+        windows = (await self.clients.matchAll({type:'window',includeUncontrolled:true}))
+          .filter(client => client.url.startsWith(self.registration.scope));
+        if (!windows.length) { reply(false); return; }
+        const ready = await Promise.all(windows.map(client => new Promise(resolve => {
+          const channel = new MessageChannel();
+          const timeout = setTimeout(() => { channel.port1.close(); resolve(false); },2000);
+          channel.port1.onmessage = message => {
+            clearTimeout(timeout); channel.port1.close(); resolve(message.data?.ready === true);
+          };
+          client.postMessage({type:'TA_UPDATE_PREPARE'},[channel.port2]);
+        })));
+        if (!ready.every(Boolean)) {
+          windows.forEach(client => client.postMessage({type:'TA_UPDATE_CANCEL'}));
+          reply(false); return;
+        }
+        reply(true);
+        await self.skipWaiting();
+      } catch {
+        windows.forEach(client => client.postMessage({type:'TA_UPDATE_CANCEL'}));
+        reply(false);
+      } finally { updating = false; }
+    })());
+  });
+})();

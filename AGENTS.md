@@ -32,3 +32,8 @@ Independent experiments published as static applications through GitHub Pages. E
 - **Default to one searchable command palette for operational actions**, rather than adding standalone toolbar buttons on each request. Only add visible action buttons when the user explicitly asks or a core form/accessibility function needs one. Prefer native inputs and compact layouts.
 - At the end of every update, report the affected app version(s), short deployed repository commit SHA (matching the bottom-right label), and direct published URLs with a `?v=<SHA>` cache-busting query. Include the deployment workflow link and explicit verification result. If not live, distinguish intended release SHA from the currently verified published SHA.
 - Prefer one release commit for related changes, or logical increments if connector operations require multiple commits. Treat the gallery's version and Git-history fields as publication metadata, not proof of a live deployment.
+
+## Gallery ordering and migration
+- Use the prototype's original start date in `YYMMDD_slug/`, not the migration date. For migrated repositories record `createdAt` (ISO-8601) in `prototype.json`; use the source repository creation timestamp when earlier history is unavailable.
+- Keep newest-first ordering by creation date. Locally pinned apps appear first, also newest-first; pins are gallery preferences stored in `testlab-pinned-prototypes` in localStorage.
+- For migrated PWAs assign unique manifest IDs and cache prefixes scoped to Testlab. Do not archive source repositories until the migrated app has been published and verified in a browser, including file handling and offline behavior where applicable.

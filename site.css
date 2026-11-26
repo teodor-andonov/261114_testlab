@@ -60,3 +60,13 @@
 :root[data-theme="dark"] .card-facts dt {color:#a1afa4}
 :root[data-theme="dark"] .card-facts dd {color:#e2e9e3}
 @media(max-width:420px){.card-facts{gap:7px}.card-facts dd{font-size:10px}}
+
+/* Pin is a sibling of the card link, so it never navigates when clicked. */
+.project-tile{position:relative;min-width:0;display:flex}
+.project-tile .project-card{width:100%;padding-top:21px}
+.project-tile .card-head{padding-right:32px}
+.pin-button{position:absolute;z-index:1;top:17px;right:17px;display:grid;place-items:center;width:30px;height:30px;border:1px solid transparent;border-radius:6px;background:var(--card);color:var(--muted);cursor:pointer}
+.pin-button:hover,.pin-button:focus-visible{border-color:var(--line);color:var(--ink)}
+.pin-button:focus-visible{outline:2px solid #9babb2;outline-offset:2px}
+.pin-button[aria-pressed="true"]{color:var(--ink);background:var(--soft);border-color:var(--line)}
+.pin-button[aria-pressed="true"] svg path:first-child{fill:currentColor;fill-opacity:.22}
