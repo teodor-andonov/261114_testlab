@@ -61,7 +61,7 @@ Hiding a layer only changes the preview unless **Only export visible** is checke
 - Not every Maya .ma serialisation connects display layers in an identical way.
   Unrecognised memberships are safely assigned to Default instead of
   inventing an object-per-layer hierarchy.
-- Binary .mb import is experimental: FOR4/FOR8 indexed static MESH records, common transforms, basic shader connections and linear units are decoded locally. History-only meshes and unsupported record layouts are reported; no Maya runtime, scripts, server, or uploads. Choose the up axis manually if necessary. UVs and component materials are not yet preserved.
+- Binary .mb import is experimental: FOR4/FOR8 indexed static MESH records, common transforms, basic shader connections and linear units are decoded locally. History-only meshes and unsupported record layouts are reported; no Maya runtime, scripts, server, or uploads. Choose the up axis manually if necessary. The supported primary UV layout is decoded; binary face/component material lists are not yet decoded.
 
 ## Development
 
@@ -69,4 +69,4 @@ Run npm install, npm test, npm run dev, or npm run build.
 
 ## Experimental binary and material import (0.6)
 
-Both file formats are parsed in a dedicated Web Worker. The decoder emits data-only ASCII commands to reuse the existing tested geometry pipeline. Format research: [MayaSceneKit](https://github.com/yamahigashi/MayaSceneKit) (MIT). This is not a full Maya scene evaluator. Unresolved or omitted mesh records are reported. Static shader transparency/opacity, roughness and metallic values are mapped where present; direct bitmap filenames are stored as external references only (no images fetched or embedded, no UV reconstruction). Named shaders without saved RGB become actual Rhino materials with default colour.
+Both file formats are parsed in a dedicated Web Worker. The decoder emits data-only ASCII commands to reuse the existing tested geometry pipeline. Format research: [MayaSceneKit](https://github.com/yamahigashi/MayaSceneKit) (MIT). This is not a full Maya scene evaluator. Unresolved or omitted mesh records are reported. Static shader transparency/opacity, roughness and metallic values are mapped where present; direct bitmap filenames are stored as external references only (no images fetched or embedded). Common primary UV coordinates are exported as Rhino mesh UVs; subdivision uses approximate face-varying interpolation, not Maya’s exact UV subdivision rules. Common ASCII face-component material assignments split the baked mesh by material after subdivision. Unsupported or incomplete assignments are reported. Named shaders without saved RGB become actual Rhino materials with default colour.

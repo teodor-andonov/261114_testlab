@@ -1,7 +1,5 @@
 import * as THREE from "three";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
-import {parseMayaAscii} from "./maya-parser.js";
-import {applyMayaAppearance} from "./maya-appearance.js";
 import {prepareMeshes} from "./subdivide.js";
 import {exportMesh3dm} from "./rhino-export.js";
 import {layerCatalog,layerColor,objectLayerKey,visibleOnLayer,applyLayerMode} from "./layers.js";
@@ -35,9 +33,9 @@ light(0xffe6ce,0.45,[1,10,3]);
 const modelGroup=new THREE.Group();
 scene.add(modelGroup);
 let groundGrid=null;
-let sourceText="",currentName="maya-geometry.ma",parsed=null,baked=null;
+let currentFile=null,currentName="maya-geometry.ma",parsed=null,baked=null;
 let layers=[],expanded=new Set(),visibility=new Map(),layerGroups=new Map();
-let exportController=null,importWorker=null,importWarnings=[];
+let exportController=null,importWorker=null;
 
 function safeText(el,value){el.textContent=String(value);}
 function status(message,kind="ok"){
@@ -286,7 +284,8 @@ function showResults(){
   renderLayerTree();
   renderNotices();
   applyVisibility();
-  status(objects.length?"Ready to export · "+objects.length+" meshes":
+  const materialCount=new Set(objects.map(o=>o.materialName).filter(Boolean)).size;
+  status(objects.length?"Ready to export · "+objects.length+" meshes · "+materialCount+" materials":
     "No supported polygon geometry in this file.",objects.length?"ok":"warning");
 }
 function rebuild(){
@@ -300,18 +299,13 @@ function rebuild(){
   renderObjects();
   showResults();
 }
-function refreshAxis(){
-  if(!sourceText)return;
-  parsed=applyMayaAppearance(parseMayaAscii(sourceText,{upAxis:$("axis").value}),sourceText);
-  parsed.warnings.unshift(...importWarnings);
-  rebuild();
-}
+function refreshAxis(){if(currentFile)openFile(currentFile);}
 async function openFile(file){
   if(!file)return;
   if(!/\.(ma|mb)$/i.test(file.name)){status("Choose a Maya .ma or .mb file.","error");return;}
   if(exportController)exportController.abort();
   importWorker?.terminate();
-  sourceText="";parsed=null;baked=null;importWarnings=[];layers=[];clearGeometry();
+  currentFile=file;parsed=null;baked=null;layers=[];clearGeometry();
   currentName=file.name;
   safeText($("file-name"),file.name);
   safeText($("file-info"),(file.size/1024/1024).toFixed(2)+" MB · Maya "+(/\.mb$/i.test(file.name)?"Binary (experimental)":"ASCII"));
@@ -330,7 +324,7 @@ async function openFile(file){
     if(importWorker!==worker)return;
     if(data.error){fail(data.error);return;}
     worker.terminate();importWorker=null;
-    sourceText=data.source;importWarnings=data.warnings;parsed=data.parsed;
+    parsed=data.parsed;
     try{rebuild();}catch(e){parsed=null;baked=null;clearGeometry();$("empty").hidden=false;status(e.message||String(e),"error");}
   };
   worker.postMessage({file,axis:$("axis").value});

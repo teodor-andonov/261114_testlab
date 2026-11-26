@@ -97,20 +97,51 @@ export function subdivideCage(input,levels=2,{maxFaces=800000}={}) {
       }
     }
     const faceIndices=facePts.map(p=>{const i=newPoints.length;newPoints.push(p);return i;});
-    const nextFaces=[];
+    const nextFaces=[],nextUVs=mesh.faceUVs?[]:null,nextMaterials=mesh.faceMaterials?[]:null;
     for(let i=0;i<faces.length;i++){
       const face=faces[i],c=faceIndices[i];
       for(let j=0;j<face.length;j++){
         const a=face[j],b=face[(j+1)%face.length],prev=face[(j+face.length-1)%face.length];
         nextFaces.push([a,indexFor.get(edgeKey(a,b)),c,indexFor.get(edgeKey(prev,a))]);
+        if(nextMaterials)nextMaterials.push(mesh.faceMaterials[i]);
+        if(nextUVs){
+          const uv=mesh.faceUVs[i];
+          const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+          const center=uv?[uv.reduce((s,p)=>s+p[0],0)/uv.length,uv.reduce((s,p)=>s+p[1],0)/uv.length]:null;
+          nextUVs.push(uv?[uv[j],mid(uv[j],uv[(j+1)%uv.length]),center,mid(uv[(j+uv.length-1)%uv.length],uv[j])]:null);
+        }
       }
     }
-    mesh={...mesh,vertices:newPoints,faces:nextFaces,
+    mesh={...mesh,vertices:newPoints,faces:nextFaces,faceUVs:nextUVs,faceMaterials:nextMaterials,
       edgeCreases:nextCreases,vertexCreases:nextVertexCreases};
   }
   return mesh;
 }
 
+// Split after subdivision so material boundaries do not introduce artificial
+// Catmull-Clark boundaries. Compact each output mesh independently.
+function splitMaterials(mesh){
+  if(!mesh.faceMaterials)return [mesh];
+  const buckets=new Map();
+  for(let i=0;i<mesh.faces.length;i++){
+    const m=mesh.faceMaterials[i]||null;
+    if(!buckets.has(m))buckets.set(m,[]);
+    buckets.get(m).push(i);
+  }
+  if(buckets.size===1)return [{...mesh,...buckets.keys().next().value,faceMaterials:null}];
+  const out=[];
+  for(const [material,ids] of buckets){
+    const vertices=[],map=new Map();
+    const faces=ids.map(i=>mesh.faces[i].map(v=>{
+      if(!map.has(v)){map.set(v,vertices.length);vertices.push(mesh.vertices[v]);}
+      return map.get(v);
+    }));
+    out.push({...mesh,...material,name:mesh.name+" ["+(material?.materialName||"Unassigned")+"]",vertices,faces,
+      faceUVs:mesh.faceUVs?ids.map(i=>mesh.faceUVs[i]):null,faceMaterials:null,
+      edgeCreases:new Map(),vertexCreases:new Map()});
+  }
+  return out;
+}
 export function prepareMeshes(parsed,levels="maya") {
   const objects=[],warnings=[...parsed.warnings],failures=[];
   for(const object of parsed.objects){
@@ -118,7 +149,7 @@ export function prepareMeshes(parsed,levels="maya") {
       const appliedLevels=levels==="maya"?(object.smoothPreview?object.smoothLevel:0):Number(levels);
       const mesh=subdivideCage(object,appliedLevels);
       if(!mesh.faces.length)throw new Error("Mesh has no faces.");
-      objects.push({...mesh,appliedLevels});
+      for(const part of splitMaterials(mesh))objects.push({...part,appliedLevels});
     }catch(error){
       failures.push({name:object.name,reason:error.message});
     }

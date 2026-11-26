@@ -10,15 +10,26 @@ const unitNames={
 };
 function populate(mesh,object,triangles=false){
   const vertices=mesh.vertices();
-  for(const p of object.vertices){
-    if(!Array.isArray(p)||p.length!==3||!p.every(Number.isFinite))
-      throw new Error("Non-finite vertex coordinates");
-    vertices.add(p[0],p[1],p[2]);
-  }
+  const validPoint=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
+  if(object.vertices.some(p=>!validPoint(p)))throw new Error("Non-finite vertex coordinates");
+  const mapped=object.faceUVs?.length===object.faces.length&&object.faceUVs.every((uv,i)=>Array.isArray(uv)&&uv.length===object.faces[i].length&&uv.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)));
+  let polygons=object.faces;
+  if(mapped){
+    // Rhino stores one UV per vertex. Duplicate vertices only at UV seams.
+    const uvTable=mesh.textureCoordinates(),map=new Map();
+    polygons=object.faces.map((polygon,i)=>polygon.map((id,j)=>{
+      if(!Number.isInteger(id)||id<0||id>=object.vertices.length)throw new Error("Face references an invalid vertex");
+      const uv=object.faceUVs[i][j],key=id+":"+uv.join(",");
+      if(!map.has(key)){
+        map.set(key,map.size);vertices.add(...object.vertices[id]);uvTable.add(...uv);
+      }
+      return map.get(key);
+    }));
+  }else for(const p of object.vertices)vertices.add(p[0],p[1],p[2]);
   const faces=mesh.faces();
-  for(const polygon of object.faces){
+  for(const polygon of polygons){
     if(!Array.isArray(polygon)||polygon.length<3)continue;
-    if(polygon.some(i=>!Number.isInteger(i)||i<0||i>=object.vertices.length))
+    if(polygon.some(i=>!Number.isInteger(i)||i<0||i>=vertices.count))
       throw new Error("Face references an invalid vertex");
     if(!triangles&&polygon.length===4)faces.addQuadFace(...polygon);
     else if(!triangles&&polygon.length===3)faces.addTriFace(...polygon);

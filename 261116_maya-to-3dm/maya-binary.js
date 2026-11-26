@@ -15,7 +15,7 @@ export function decodeMayaBinary(buffer){
   const tag=p=>String.fromCharCode(b[p],b[p+1],b[p+2],b[p+3]);
   const header=tag(0);if(!["FOR4","FOR8"].includes(header))throw new Error("Not a supported Maya Binary IFF container.");
   const nodes=[],connections=[],warnings=[],missing=[],unknown=new Set();
-  let unit="cm",meshRecords=0,decodedMeshes=0,axis="y",angular="deg",chunks=0;
+  let unit="cm",meshRecords=0,decodedMeshes=0,axis="y",chunks=0,uvMeshes=0;
   const u32=p=>d.getUint32(p,false);
   function readMesh(p,end,node){
     const attr=cstr(b,p,end);if(!attr||b[attr[1]]!==0x20)throw new Error("Unrecognised MESH encoding");
@@ -38,8 +38,38 @@ export function decodeMayaBinary(buffer){
       if(flag&0x60){if(ring.length<3)throw new Error("Invalid polygon");faces.push(ring);ring=[];}
     }
     if(ring.length||!faces.length)throw new Error("Unterminated polygons");
+    // Decode the primary UV set when the indexed payload has the known trailer layout.
+    function uvAt(start){
+      let k=start;
+      if(k+8>end)return null;
+      k+=4;const sets=u32(k);k+=4;
+      if(sets<1||sets>16||k+4>end)return null;
+      const set=u32(k);k+=4;
+      const nm=cstr(b,k,end);if(!nm||nm[0].length>128)return null;k=nm[1];
+      if(k+4>end)return null;
+      const count=u32(k);k+=4;
+      if(!count||count%2||count>(end-k)/4)return null;
+      const uv=[];for(let i=0;i<count;i++,k+=4){const v=d.getFloat32(k,false);if(!Number.isFinite(v))return null;uv.push(v);}
+      if(k+4>end||u32(k)!==words.length)return null;k+=4;
+      if(words.length>(end-k)/4)return null;
+      const indices=[];for(let i=0;i<words.length;i++,k+=4){const id=u32(k);if(id>=count/2)return null;indices.push(id);}
+      return {set,uv,indices};
+    }
+    let uvs=uvAt(p);
+    if(!uvs&&p+4<=end){
+      const normalCount=u32(p),next=p+4+normalCount*4;
+      if(normalCount&&normalCount%3===0&&next+12<=end&&u32(next)===0&&u32(next+8)===0)uvs=uvAt(next+12);
+    }
     // Emit bounded command batches, reusing the tested ASCII topology and transform pipeline.
     const out=[];
+    if(uvs){
+      uvMeshes++;
+      for(let i=0;i<uvs.uv.length/2;i+=250){
+        const n=Math.min(i+250,uvs.uv.length/2);
+        out.push('setAttr ".uvst['+uvs.set+'].uvsp['+i+':'+(n-1)+']" -type "float2" '+uvs.uv.slice(i*2,n*2).join(" ")+';');
+      }
+      let k=0;for(const face of faces){face.uv=uvs.indices.slice(k,k+face.length);k+=face.length;}
+    }
     for(let i=0;i<vt.length/3;i+=166){
       const n=Math.min(i+166,vt.length/3);
       out.push('setAttr ".vt['+i+':'+(n-1)+']" '+vt.slice(i*3,n*3).join(" ")+';');
@@ -51,7 +81,7 @@ export function decodeMayaBinary(buffer){
     }
     for(let i=0;i<faces.length;i+=500){
       const n=Math.min(i+500,faces.length);
-      out.push('setAttr ".fc['+i+':'+(n-1)+']" -type "polyFaces" '+faces.slice(i,n).map(f=>"f "+f.length+" "+f.join(" ")).join(" ")+';');
+      out.push('setAttr ".fc['+i+':'+(n-1)+']" -type "polyFaces" '+faces.slice(i,n).map(f=>"f "+f.length+" "+f.join(" ")+(f.uv?" mu "+uvs.set+" "+f.uv.length+" "+f.uv.join(" "):"")).join(" ")+';');
     }
     node.geometry.push(...out);
     decodedMeshes++;
@@ -101,7 +131,7 @@ export function decodeMayaBinary(buffer){
         const a=cstr(b,q+1,z),c=a&&cstr(b,a[1],z);
         if(a&&c&&validName(a[0])&&validName(c[0]))connections.push([a[0].replace(/^:/,""),c[0].replace(/^:/,"")]);
       }else if(form==="HEAD"&&t==="LUNI"){const u=decode.decode(b.subarray(q,z)).replace(/\0/g,"");if(/^(mm|cm|m|km|in|ft|yd)$/.test(u))unit=u;}
-      else if(form==="HEAD"&&t==="AUNI"){angular=decode.decode(b.subarray(q,z)).replace(/\0/g,"");}
+      else if(form==="HEAD"&&t==="AUNI"){/* binary transform angles are radians */}
       else if(form==="HEAD"&&["AXIS","UPAX"].includes(t)){const a=decode.decode(b.subarray(q,z)).toLowerCase();if(a==="z"||a==="y")axis=a;}
       else if(t==="MESH"){
         meshRecords++;
@@ -115,12 +145,13 @@ export function decodeMayaBinary(buffer){
   }
   walk(0,b.length,header==="FOR8","",0);
   // The built-in shading group may not have an explicit CREA record.
+  const knownNames=new Set(nodes.map(n=>n.name));
   for(const [src,dst] of connections){
     for(const ref of [src,dst]){
       const name=ref.split(".")[0];
-      if(!nodes.some(n=>n.name===name)){
+      if(!knownNames.has(name)){
         const type=name==="initialShadingGroup"?"shadingEngine":name==="lambert1"?"lambert":name==="standardSurface1"?"standardSurface":null;
-        if(type)nodes.push({type,name,parent:null,attrs:new Map(),geometry:[]});
+        if(type){nodes.push({type,name,parent:null,attrs:new Map(),geometry:[]});knownNames.add(name);}
       }
     }
   }
@@ -129,7 +160,7 @@ export function decodeMayaBinary(buffer){
     out.push("createNode "+n.type+" -n "+quote(n.name)+(n.parent?" -p "+quote(n.parent):"")+";");
     for(const [key,a] of n.attrs){
       const v=a.values;
-      if(v&&["io","dsm","it","khe","peh","v"].includes(key))out.push("setAttr "+quote("."+key)+" "+(v[0]?"yes":"no")+";");
+      if(v&&((n.type==="mesh"&&["io","khe","peh"].includes(key))||(n.type==="transform"&&key==="it")||(["transform","mesh","displayLayer"].includes(n.type)&&key==="v")))out.push("setAttr "+quote("."+key)+" "+(v[0]?"yes":"no")+";");
       else if(v)out.push("setAttr "+quote("."+key)+" "+v.join(" ")+";");
       else if(a.str!==undefined)out.push("setAttr "+quote("."+key)+' -type "string" '+quote(a.str)+";");
     }
@@ -141,6 +172,6 @@ export function decodeMayaBinary(buffer){
   if(absent)warnings.push(absent+" mesh node(s) have no decoded baked geometry; conversion may be incomplete.");
   if(missing.length)warnings.push(...missing.slice(0,20));
   if(unknown.size)warnings.push("Unsupported binary node forms: "+[...unknown].slice(0,30).join(", ")+".");
-  warnings.push("Binary UVs, face material components, hard-edge flags and source up-axis metadata are not fully decoded. Check the Up setting and geometry before export.");
+  warnings.push("Binary UV sets decoded on "+uvMeshes+" mesh record(s). Other UV layouts, face material components, hard-edge flags and source up-axis metadata are not fully decoded. Check the Up setting and geometry before export.");
   return {source:out.join("\n"),warnings,decodedMeshes,meshRecords};
 }

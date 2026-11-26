@@ -7,6 +7,6 @@ self.onmessage=async ({data})=>{
     const result=binary?decodeMayaBinary(await data.file.arrayBuffer()):{source:await data.file.text(),warnings:[]};
     const parsed=applyMayaAppearance(parseMayaAscii(result.source,{upAxis:data.axis}),result.source);
     parsed.warnings.unshift(...result.warnings);
-    self.postMessage({source:result.source,warnings:result.warnings,parsed});
+    self.postMessage({parsed,axis:data.axis});
   }catch(error){self.postMessage({error:error.message||String(error)});}
 };

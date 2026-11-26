@@ -61,19 +61,21 @@ function facesFromValues(v){
     if(key==="f"){
       const n=num(v[i++],-1);
       if(!Number.isInteger(n)||n<3||i+n>v.length)break;
-      faces.push({refs:v.slice(i,i+n).map(Number),hole:false});i+=n;
+      faces.push({refs:v.slice(i,i+n).map(Number),hole:false,uvs:new Map()});i+=n;
     }else if(key==="h"){
       const n=num(v[i++],-1);
       if(n<0||i+n>v.length)break;
       if(faces.length)faces.at(-1).hole=true;
       i+=n;
     }else if(key==="mu"||key==="mc"){
-      i++;const n=num(v[i++],-1);
+      const set=num(v[i++],-1),n=num(v[i++],-1);
       if(n<0||i+n>v.length)break;
+      if(key==="mu"&&faces.length)faces.at(-1).uvs.set(set,v.slice(i,i+n).map(Number));
       i+=n;
     }else if(["mf","mh","fc"].includes(key)){
       const n=num(v[i++],-1);
       if(n<0||i+n>v.length)break;
+      if(key==="mf"&&faces.length)faces.at(-1).uvs.set(0,v.slice(i,i+n).map(Number));
       i+=n;
     }
   }
@@ -83,7 +85,7 @@ function nodeData(type,name,path,parent){
   return {type,name,path,parent,
     t:[0,0,0],r:[0,0,0],s:[1,1,1],ro:0,ra:[0,0,0],
     rp:[0,0,0],sp:[0,0,0],rpt:[0,0,0],spt:[0,0,0],sh:[0,0,0],it:true,
-    vertices:[],offsets:[],edges:[],chunks:[],
+    vertices:[],offsets:[],edges:[],chunks:[],uvSets:new Map(),
     intermediate:false,preview:false,level:2,boundary:1,keepHard:false,
     creases:new Map(),vertexCreases:new Map()
   };
@@ -151,7 +153,21 @@ export function parseMayaAscii(source,options={}){
     if(op!=="setAttr"||!selected)continue;
     const at=t.findIndex((v,i)=>i>0&&(v.startsWith(".")||!v.startsWith("-")&&v.includes(".")));
     if(at<0)continue;
-    const ref=t[at],dot=ref.lastIndexOf("."),attr=ref.slice(dot+1);
+    const ref=t[at],dot=ref.indexOf("."),attr=ref.slice(dot+1);
+    const uvAttr=attr.match(/^(?:uvst|uvSet)\[(\d+)\]\.(?:uvsp|uvSetPoints)\[(\d+)(?::\d+)?\]$/);
+    if(uvAttr){
+      const node=nodes.get(dot===0?selected:resolve(ref.slice(0,dot)));
+      if(node?.type==="mesh"){
+        const values=t.slice(at+1);if(values[0]==="-type")values.splice(0,2);
+        const set=Number(uvAttr[1]),start=Number(uvAttr[2]),uv=node.uvSets.get(set)||[];
+        for(let i=0;i+1<values.length;i+=2){
+          const p=[Number(values[i]),Number(values[i+1])];
+          if(p.every(Number.isFinite))uv[start+i/2]=p;
+        }
+        node.uvSets.set(set,uv);
+      }
+      continue;
+    }
     const match=attr.match(/^([a-zA-Z]\w*)(?:\[(\d+)(?::\d+)?\])?$/);
     if(!match)continue;
     const node=nodes.get(dot===0?selected:resolve(ref.slice(0,dot)));
@@ -208,8 +224,10 @@ export function parseMayaAscii(source,options={}){
     const positions=geometry.vertices.map((p,i)=>p?worldPoint(plus(p,geometry.offsets[i]||[0,0,0]),node,nodes,outputAxis):null);
     const raw=[];
     for(const chunk of geometry.chunks)chunk.faces.forEach((face,i)=>raw[chunk.start+i]=face);
-    const faces=[];
-    for(const f of raw){
+    const faces=[],sourceFaceIds=[],faceUVs=[];
+    const uvSet=geometry.uvSets.has(0)?0:geometry.uvSets.keys().next().value;
+    const uvPoints=geometry.uvSets.get(uvSet);
+    for(const [faceId,f] of raw.entries()){
       if(!f)continue;
       if(f.hole){report("faces with holes skipped");continue;}
       const ring=[];let end=null,valid=true;
@@ -229,9 +247,13 @@ export function parseMayaAscii(source,options={}){
         area+=Math.hypot(...n);
       }
       if(area<1e-12){report("zero-area polygon faces skipped");continue;}
-      faces.push(ring);
+      faces.push(ring);sourceFaceIds.push(faceId);
+      const uvIds=f.uvs.get(uvSet);
+      const uv=uvIds?.map(i=>uvPoints?.[i]);
+      faceUVs.push(uv?.length===ring.length&&uv.every(Boolean)?uv:null);
     }
     if(!faces.length){report("meshes without valid faces skipped");continue;}
+    if(uvPoints&&faceUVs.some(x=>!x))report("meshes with incomplete primary UV mapping (unmapped faces retained)");
     const used=[...new Set(faces.flat())],remap=new Map(used.map((id,i)=>[id,i]));
     const edgeKey=(a,b)=>Math.min(a,b)+":"+Math.max(a,b);
     const creases=new Map(),vertexCreases=new Map();
@@ -244,6 +266,7 @@ export function parseMayaAscii(source,options={}){
     objects.push({
       name:nodes.get(node.parent)?.name||node.name,
       path:node.path,vertices:used.map(id=>positions[id]),faces:faces.map(f=>f.map(id=>remap.get(id))),
+      sourceFaceIds,faceUVs:faceUVs.some(Boolean)?faceUVs:null,
       edgeCreases:creases,vertexCreases,boundaryRule:node.boundary,
       smoothLevel:node.level,smoothPreview:node.preview,
       triangles:faces.filter(f=>f.length===3).length,

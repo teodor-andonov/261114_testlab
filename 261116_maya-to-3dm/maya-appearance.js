@@ -11,7 +11,7 @@ const shaderTypes=new Set([
   "surfaceShader","standardSurface","aiStandardSurface"
 ]);
 function attrRef(ref){
-  const point=ref.lastIndexOf(".");
+  const point=ref.indexOf(".");
   return {node:point<0?ref:ref.slice(0,point),attr:point<0?"":ref.slice(point+1)};
 }
 function baseAttr(attr){return attr.replace(/\[.*$/,"");}
@@ -60,9 +60,11 @@ function graph(source){
     const node=nodes.get(ref.node?resolve(ref.node):current);
     if(!node)continue;
     const key=baseAttr(ref.attr);
+    // Do not duplicate heavy geometry arrays in the appearance graph.
+    if(node.type==="mesh"&&!/^(iog|instObjGroups|og|objectGroups|ovrgb|overrideColorRGB|ovcr|ovcg|ovcb|overrideColorR|overrideColorG|overrideColorB)$/.test(key))continue;
     const values=t.slice(at+1);
     if(values[0]==="-type")values.splice(0,2);
-    if(values.length)node.attrs.set(key,values);
+    if(values.length){node.attrs.set(key,values);if(ref.attr!==key)node.attrs.set(ref.attr,values);}
   }
   return {nodes,connections,resolve};
 }
@@ -135,7 +137,7 @@ export function applyMayaAppearance(parsed,source){
   const {nodes,connections,resolve}=graph(source);
   const namedLayers=[...nodes.values()].filter(n=>n.type==="displayLayer"&&n.name!=="defaultLayer");
   const layerNameById=new Map(namedLayers.map(n=>[n.id,n.name]));
-  const membership=new Map(),shaderByGroup=new Map(),groupByShape=new Map();
+  const membership=new Map(),shaderByGroup=new Map(),groupByShape=new Map(),faceGroups=new Map();
   const textureTargets=new Set(),texturePaths=new Map();
   let componentAssignments=0;
   for(const [src,dst] of connections){
@@ -156,9 +158,23 @@ export function applyMayaAppearance(parsed,source){
        (bAttr==="ss"||bAttr==="surfaceShader")&&shaderTypes.has(from.type))
       shaderByGroup.set(to.id,from.id);
     if(to.type==="shadingEngine"&&isObjectMember(a.attr,b.attr)&&from.type==="mesh"){
-      // Component-level assignments cannot be represented as one material/object.
-      if(/\.(og|objectGroups)\[/.test(a.attr)||aAttr==="og"||aAttr==="objectGroups")componentAssignments++;
-      else if(aAttr==="iog"||aAttr==="instObjGroups")groupByShape.set(from.id,to.id);
+      // Standard .ma files connect objectGroups to shadingEngine and store
+      // their face membership in the corresponding groupComponents attribute.
+      const component=a.attr.match(/^(?:iog|instObjGroups)(?:\[\d+\])?\.(?:og|objectGroups)\[(\d+)\]/);
+      if(component){
+        const groupId=component[1];
+        const key=[...from.attrs.keys()].find(k=>new RegExp("^(?:iog|instObjGroups)(?:\\[\\d+\\])?\\.(?:og|objectGroups)\\["+groupId+"\\]\\.(?:gcl|objectGrpCompList)$").test(k));
+        const vals=from.attrs.get(key)||[],ranges=[];
+        for(const v of vals){
+          const m=v.match(/^f\[(\*|\d+)(?::(\d+))?\]$/);
+          if(m)ranges.push(m[1]==="*"?[0,Infinity]:[Number(m[1]),Number(m[2]??m[1])]);
+        }
+        if(ranges.length){
+          if(!faceGroups.has(from.id))faceGroups.set(from.id,[]);
+          faceGroups.get(from.id).push({group:to.id,ranges});
+        }else componentAssignments++;
+      }else if(aAttr==="iog"||aAttr==="instObjGroups")groupByShape.set(from.id,to.id);
+      else componentAssignments++;
     }
     if(shaderTypes.has(to.type)&&["c","color","bc","baseColor","base_color"].includes(bAttr)
        &&from.type==="file"){
@@ -171,7 +187,20 @@ export function applyMayaAppearance(parsed,source){
     name:n.name,color:readDisplayColor(n),sourceId:n.id,
     visible:n.attrs.get("v")?.[0]!=="no"&&n.attrs.get("v")?.[0]!=="0"
   }));
-  let textured=0;
+  let textured=0,multi=0;
+  const materialCache=new Map();
+  function materialFor(groupId){
+    if(materialCache.has(groupId))return materialCache.get(groupId);
+    const shader=nodes.get(shaderByGroup.get(groupId));
+    const result={
+      materialName:shader?.name||null,
+      materialColor:shader?readNodeColor(shader):null,
+      materialProperties:readMaterialProperties(shader),
+      materialTexture:shader?texturePaths.get(shader.id)||null:null,
+      textureDriven:!!shader&&textureTargets.has(shader.id)
+    };
+    materialCache.set(groupId,result);return result;
+  }
   const objects=parsed.objects.map(object=>{
     let node=nodes.get(object.path);
     let foundLayer=null;
@@ -181,19 +210,24 @@ export function applyMayaAppearance(parsed,source){
       node=nodes.get(node.parent);
     }
     const layerName=layerNameById.get(foundLayer)||"Default";
-    const group=nodes.get(groupByShape.get(object.path));
-    const shader=nodes.get(shaderByGroup.get(group?.id));
-    if(shader&&textureTargets.has(shader.id))textured++;
+    const material=materialFor(groupByShape.get(object.path));
+    const groups=faceGroups.get(object.path);
+    const faceMaterials=groups?.length&&object.faces?object.faces.map((_,i)=>{
+      const id=object.sourceFaceIds?.[i]??i;
+      let assigned=material;
+      for(const g of groups)if(g.ranges.some(([a,b])=>id>=a&&id<=b))assigned=materialFor(g.group);
+      return assigned;
+    }):null;
+    if(material.textureDriven||faceMaterials?.some(m=>m.textureDriven))textured++;
+    if(faceMaterials&&new Set(faceMaterials).size>1)multi++;
     return {...object,
       layerName,layerColor:displayLayers.find(l=>l.name===layerName)?.color||null,
-      materialName:shader?.name||null,
-      materialColor:shader?readNodeColor(shader):null,
-      materialProperties:readMaterialProperties(shader),
-      materialTexture:shader?texturePaths.get(shader.id)||null:null
+      ...material,faceMaterials
     };
   });
   const warnings=[...parsed.warnings];
-  if(textured)warnings.push(textured+" objects use texture-driven colours; direct bitmap paths are preserved as references, not embedded images. UV mapping and shader networks are not evaluated.");
-  if(componentAssignments)warnings.push(componentAssignments+" face/component material connections are not supported; affected objects may have incomplete materials.");
+  if(textured)warnings.push(textured+" objects use texture-driven colours; direct bitmap paths are preserved as references, not embedded images. Only supported primary UV mappings are imported; shader networks are not evaluated.");
+  if(componentAssignments)warnings.push(componentAssignments+" face/component material connections could not be resolved; affected objects may have incomplete materials.");
+  if(multi)warnings.push(multi+" multi-material meshes will be split by face material after subdivision.");
   return {...parsed,objects,displayLayers,warnings};
 }
