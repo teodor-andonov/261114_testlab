@@ -4,7 +4,7 @@ const search = document.getElementById('filterInput');
 const empty = document.getElementById('emptyNotice');
 let projects = [];
 const VIEW_KEY = 'testlab-gallery-view';
-const views = ['cards','small','list','table'];
+const views = ['cards','small','icons','list','table'];
 let view = 'cards';
 try { const stored = localStorage.getItem(VIEW_KEY); if (views.includes(stored)) view = stored; } catch {}
 const viewControls = document.getElementById('viewControls');
@@ -87,8 +87,7 @@ function projectCard(project) {
   const titleRow = document.createElement('div');
   titleRow.className = 'card-title-row';
   const title = document.createElement('h3'); title.textContent = project.title;
-  const arrow = document.createElement('span'); arrow.className = 'visit-arrow'; arrow.textContent = '↗'; arrow.setAttribute('aria-hidden','true');
-  titleRow.append(title, arrow);
+  titleRow.append(title);
   const summary = document.createElement('p'); summary.textContent = project.description || '';
   const facts = document.createElement('dl');
   facts.className = 'card-facts';
@@ -108,6 +107,23 @@ function projectCard(project) {
   card.append(header, symbol, bottom);
   const tile = document.createElement('div');
   tile.className = 'project-tile';
+  tile.append(card, pinButton(project));
+  return tile;
+}
+function projectIcon(project) {
+  const tile = document.createElement('div');
+  tile.className = 'project-tile';
+  const card = document.createElement('a');
+  card.className = 'project-card icon-card';
+  card.href = projectHref(project);
+  card.title = project.title;
+  card.setAttribute('aria-label', project.title);
+  const words = project.title.match(/[\p{L}\p{N}]+/gu) || ['?'];
+  const initials = document.createElement('span');
+  initials.className = 'icon-initials';
+  initials.setAttribute('aria-hidden', 'true');
+  initials.textContent = (words.length === 1 ? words[0].slice(0,2) : words.slice(0,3).map(word => word[0]).join('')).toUpperCase();
+  card.append(iconElement(project), initials);
   tile.append(card, pinButton(project));
   return tile;
 }
@@ -154,7 +170,7 @@ function render() {
     || a.folder.localeCompare(b.folder));
   list.dataset.view = view;
   for (const button of viewControls.querySelectorAll('button[data-view]')) button.setAttribute('aria-pressed', String(button.dataset.view === view));
-  list.replaceChildren(...(view === 'table' && displayed.length ? [projectTable(displayed)] : displayed.map(projectCard)));
+  list.replaceChildren(...(view === 'table' && displayed.length ? [projectTable(displayed)] : displayed.map(view === 'icons' ? projectIcon : projectCard)));
   count.textContent = String(projects.length).padStart(2, '0');
   empty.hidden = displayed.length !== 0;
 }
