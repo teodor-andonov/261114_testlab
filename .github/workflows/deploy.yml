@@ -69,6 +69,12 @@ jobs:
           npm install --no-audit --no-fund
           npm test
           npm run build
+      - name: Build Archbook 01
+        working-directory: 261126_archbook-01
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+          npm run build
       - name: Assemble landing page and self-contained prototypes
         run: python3 .github/scripts/build_site.py
       - id: pages
