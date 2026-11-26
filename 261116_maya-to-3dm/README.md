@@ -63,6 +63,10 @@ Hiding a layer only changes the preview unless **Only export visible** is checke
   inventing an object-per-layer hierarchy.
 - Binary .mb import is experimental: FOR4/FOR8 indexed static MESH records, common transforms, basic shader connections and linear units are decoded locally. History-only meshes and unsupported record layouts are reported; no Maya runtime, scripts, server, or uploads. Choose the up axis manually if necessary. The supported primary UV layout is decoded; binary face/component material lists are not yet decoded.
 
+## Binary compatibility update (0.6.0-alpha.2)
+
+Decode hard-edge bits separately from vertex indices and use all 29 polygon edge-index bits. Handle versioned CREA UUID layouts, integer attributes and explicit import progress. Large files still require enough browser memory; history-only files remain unsupported. No geometry is uploaded. The Notices panel expands automatically when a file contains no importable mesh.
+
 ## Development
 
 Run npm install, npm test, npm run dev, or npm run build.
