@@ -1,0 +1,2 @@
+import {defineConfig} from 'vite';
+export default defineConfig({base:'./',optimizeDeps:{exclude:['@classcad/smlibwasm','replicad-opencascadejs']},build:{outDir:'build',target:'esnext'},worker:{format:'es'}});

@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {MemoryFS,discover,dependencyOrder,validateParameters,validateObjects,invalidate,Registry,safePath} from '../src/core.js';import {fixture} from '../src/fixture.js';
+test('fixture discovers independent resources',async()=>{const fs=new MemoryFS(fixture());const x=await discover(fs);assert.equal(x.resources.length,6);assert.deepEqual(dependencyOrder(x.resources,'study').map(m=>m.id),['facade','study'])});
+test('duplicate resource IDs and traversal rejected',async()=>{const fs=new MemoryFS(fixture());await fs.write('models/copy/model.json',await fs.read('models/facade/model.json'));await assert.rejects(discover(fs),/duplicate/);assert.throws(()=>safePath('../outside'))});
+test('dependency cycles and unresolved inputs',()=>{assert.throws(()=>dependencyOrder([{type:'model',id:'a',inputs:{b:'a'}}],'a'),/cycle/);assert.throws(()=>dependencyOrder([],'a'),/Unresolved/)});
+test('parameter and object validation',()=>{assert.throws(()=>validateParameters({x:{type:'integer',min:1}},{x:1.5}));assert.throws(()=>validateObjects('a',[{id:'a'},{id:'a'}]));assert.equal(validateObjects('m',[{id:'a'}])[0].modelId,'m')});
+test('invalidation traverses downstream',()=>{const s={resources:[{type:'model',id:'b',inputs:{a:'a'}}],models:new Map([['a',{}],['b',{}]])};invalidate(s,'a');assert.equal(s.models.get('b').stale,true)});
+test('command registry',async()=>{const r=new Registry;r.register({id:'x',commands:[{id:'x.go',run:({n})=>n+1}]});assert.equal(await r.run('x.go',{n:4}),5)});
