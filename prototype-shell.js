@@ -6,23 +6,24 @@
   const tray = document.createElement('nav');
   tray.className = 'testlab-floating-controls';
   tray.setAttribute('aria-label', 'Testlab navigation');
-  tray.innerHTML = [
-    '<button type="button" class="testlab-floating-button testlab-theme-button" aria-label="Toggle light or dark mode" title="Toggle theme">',
-    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="18" height="18">',
-    '<path d="M20 12.7A8.5 8.5 0 0 1 11.3 4 8.5 8.5 0 1 0 20 12.7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
-    '</svg></button>',
-    '<a class="testlab-floating-button testlab-home-button" href="../" aria-label="Back to Testlab home" title="Back to Testlab">',
-    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="18" height="18">',
-    '<path d="m3 10 9-7 9 7v10h-6v-7H9v7H3V10Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-    '</svg></a>'
-  ].join('');
-  document.body.append(tray);
-  // Resolve home from the shared script URL, not the current prototype route.
-  const home = tray.querySelector('.testlab-home-button');
-  if (document.currentScript?.src) home.href = new URL('./', document.currentScript.src).href;
-  const toggle = tray.querySelector('.testlab-theme-button');
-  const moonIcon = toggle.innerHTML;
-  const sunIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  const base = new URL('./', document.currentScript.src);
+  const repo = 'https://github.com/teodor-andonov/' + (base.hostname.endsWith('.github.io') ? base.pathname.split('/').filter(Boolean)[0] || '261114_testlab' : '261114_testlab');
+  const menu = document.createElement('div');
+  menu.className = 'testlab-nav-menu';
+  menu.id = 'testlab-nav-menu';
+  menu.hidden = true;
+  const icon = (name) => '<span aria-hidden="true" class="testlab-nav-icon" style="--testlab-icon:url(' + new URL('icons/lucide/'+name+'.svg', base).href + ')"></span>';
+  const home = document.createElement('a'); home.href = base.href; home.className = 'testlab-floating-button testlab-home-button'; home.setAttribute('aria-label','Home'); home.title = 'Home'; home.innerHTML = icon('house');
+  const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'testlab-floating-button testlab-theme-button';
+  const github = document.createElement('a'); github.href = repo; github.className = 'testlab-floating-button'; github.target = '_blank'; github.rel = 'noopener noreferrer'; github.title = 'GitHub'; github.setAttribute('aria-label','GitHub'); github.innerHTML = icon('github');
+  menu.append(home,toggle,github);
+  const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'testlab-nav-dot'; trigger.setAttribute('aria-label','Testlab navigation'); trigger.setAttribute('aria-expanded','false'); trigger.setAttribute('aria-controls',menu.id); trigger.title = 'Testlab navigation';
+  const show = open => { menu.hidden = !open; trigger.setAttribute('aria-expanded', String(open)); };
+  trigger.addEventListener('click', () => show(menu.hidden));
+  document.addEventListener('pointerdown', event => { if (!tray.contains(event.target)) show(false); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !menu.hidden) { show(false); trigger.focus(); } });
+  tray.append(menu,trigger); document.body.append(tray);
+  const moonIcon = icon('moon'), sunIcon = icon('sun');
   const media = window.matchMedia('(prefers-color-scheme: dark)');
 
   function storedTheme() {

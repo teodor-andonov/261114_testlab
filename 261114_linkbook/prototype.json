@@ -3,10 +3,10 @@
   "description": "Local-first browser bookmark organiser with website previews and custom covers.",
   "category": "Web app",
   "status": "Active",
-  "monogram": "LB",
   "tags": [
     "Bookmarks",
     "Local-first",
     "Browser"
-  ]
+  ],
+  "icon": "book-marked"
 }

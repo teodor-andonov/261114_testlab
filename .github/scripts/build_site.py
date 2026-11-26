@@ -90,6 +90,11 @@ def main():
         # Migrated apps retain their original repository creation date.
         created = info.get('createdAt') or created
         version = version_of(folder, info)
+        if not version or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+            raise ValueError(f"{folder.name}: expected plain MAJOR.MINOR.PATCH version, got {version}")
+        icon = info.get("icon", "box")
+        if not re.fullmatch(r"[a-z0-9-]+", icon) or not (ROOT / "icons" / "lucide" / (icon + ".svg")).is_file():
+            raise ValueError(f"{folder.name}: unknown local Lucide icon {icon}")
         projects.append({
             "folder": folder.name,
             "date": match.group(1),
@@ -97,7 +102,7 @@ def main():
             "description": str(info.get("description") or "Standalone prototype")[:360],
             "category": str(info.get("category") or "Web app")[:40],
             "status": str(info.get("status") or "Prototype")[:40],
-            "monogram": str(info.get("monogram") or title[:2]).upper()[:4],
+            "icon": icon,
             "tags": [str(tag)[:45] for tag in info.get("tags", []) if isinstance(tag, str)][:8],
             "createdAt": created,
             "updatedAt": updated,

@@ -3,12 +3,12 @@
   "description": "File-first HTML notes with rich editing, embedded assets and sandboxed custom HTML, SVG and JavaScript blocks.",
   "category": "Local-first / Writing",
   "status": "Prototype",
-  "monogram": "HN",
-  "version": "0.5.0-alpha.1",
+  "version": "0.5.0",
   "tags": [
     "HTML",
     "PWA",
     "File-first",
     "Offline"
-  ]
+  ],
+  "icon": "notebook-pen"
 }

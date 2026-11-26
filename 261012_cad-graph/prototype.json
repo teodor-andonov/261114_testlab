@@ -7,7 +7,7 @@
     "Graph"
   ],
   "status": "Prototype",
-  "monogram": "CG",
-  "version": "0.1.0-alpha.1",
-  "createdAt": "2026-10-12T21:32:42Z"
+  "version": "0.1.1",
+  "createdAt": "2026-10-12T21:32:42Z",
+  "icon": "network"
 }
