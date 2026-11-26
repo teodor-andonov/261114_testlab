@@ -1,5 +1,5 @@
 // Offline shell for the Testlab gallery only. Prototype folders own their own runtime.
-const CACHE_NAME = 'testlab-gallery-v5';
+const CACHE_NAME = 'testlab-gallery-v6';
 const ROOT_FILES = ['','index.html','site.css','site.js','catalog.json','manifest.webmanifest',
                     'icons/icon-192.png','icons/icon-512.png','icons/testlab.svg','prototype-shell.css','prototype-shell.js',
                     ...['flask-conical','network','file-image','folder-open','git-fork','book-marked','mic','box','file-box','panels-top-left','notebook-pen','cuboid','drafting-compass','palette','scan-eye','book-open','layout-grid','grid-3x3','list','table','house','moon','sun','github','pin','grip'].map(name => `icons/lucide/${name}.svg`)];

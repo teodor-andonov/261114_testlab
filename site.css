@@ -9,10 +9,16 @@
 /* Compact gallery view and restored footer. */
 .shell{min-height:100dvh;display:flex;flex-direction:column}.shell>main{flex:1}
 footer{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:22px 0 30px;color:var(--muted);font:600 10px/1.5 ui-monospace,monospace;letter-spacing:.045em}.footer-divider{margin:0 6px}
-.project-grid[data-view="icons"]{grid-template-columns:repeat(auto-fill,76px);gap:8px;justify-content:start}
-.project-grid[data-view="icons"] .icon-card{min-height:76px;height:76px;padding:11px 5px 7px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:5px}
+.project-grid[data-view="icons"]{grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
+.project-grid[data-view="icons"] .icon-card{min-height:0;height:auto;aspect-ratio:1;padding:11px 5px 7px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:5px}
 .icon-card .app-icon{width:29px;height:29px;color:var(--ink)}.icon-initials{font:600 9px/1.2 ui-monospace,monospace;color:var(--muted);letter-spacing:.04em}
 .project-grid[data-view="icons"] .project-tile>.pin-button{top:2px;right:2px;width:22px;height:22px;padding:0;background:var(--card)}
 .project-grid[data-view="icons"] .pin-button svg{width:13px;height:13px}
-@media(hover:hover){.project-tile>.pin-button:not([aria-pressed="true"]),.prototype-table .pin-button:not([aria-pressed="true"]){opacity:0}.project-tile:hover>.pin-button,.project-tile:focus-within>.pin-button,.prototype-table tr:hover .pin-button,.prototype-table tr:focus-within .pin-button{opacity:1}}
+/* Hide unpinned controls on every input type; reveal by hover, keyboard or touch long-press. */
+.pin-button[aria-pressed="false"]{opacity:0;pointer-events:none}
+.pin-button:focus-visible,.pin-revealed .pin-button{opacity:1;pointer-events:auto}
+.project-tile:has(.project-card:focus-visible)>.pin-button,.prototype-table tr:has(.table-app:focus-visible) .pin-button{opacity:1;pointer-events:auto}
+@media(hover:hover) and (pointer:fine){.project-tile:hover>.pin-button,.prototype-table tr:hover .pin-button{opacity:1;pointer-events:auto}}
+@media(hover:none),(pointer:coarse){.project-card,.table-app{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}}
+
 @media(max-width:600px){footer{flex-direction:column;gap:4px}.view-controls button{width:29px}.gallery-tools{justify-content:flex-start}}
