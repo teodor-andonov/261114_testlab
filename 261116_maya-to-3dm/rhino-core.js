@@ -62,14 +62,28 @@ export function createMesh3dmSession(meta,rhino){
     }
   }catch(error){doc.destroy();throw error;}
   function materialIndexFor(object){
-    if(!object.materialName||!validColor(object.materialColor))return null;
-    const rgb=object.materialColor;
-    const key=object.materialName+":"+rgb.r+","+rgb.g+","+rgb.b;
+    if(!object.materialName)return null;
+    const rgb=validColor(object.materialColor)?object.materialColor:null;
+    const props=object.materialProperties||{};
+    const key=JSON.stringify([object.materialName,rgb,props,object.materialTexture]);
     if(materials.has(key))return materials.get(key);
     const mat=new rhino.Material();
     try{
       mat.name=object.materialName;
-      mat.diffuseColor={r:rgb.r,g:rgb.g,b:rgb.b,a:255};
+      if(rgb)mat.diffuseColor={...rgb,a:255};
+      if(Number.isFinite(props.opacity))mat.transparency=1-props.opacity;
+      if([props.roughness,props.metallic].some(Number.isFinite)){
+        mat.toPhysicallyBased();
+        const pbr=mat.physicallyBased();
+        try{
+          if(rgb)pbr.baseColor={r:rgb.r/255,g:rgb.g/255,b:rgb.b/255,a:1};
+          if(Number.isFinite(props.roughness))pbr.roughness=props.roughness;
+          if(Number.isFinite(props.metallic))pbr.metallic=props.metallic;
+          if(Number.isFinite(props.opacity))pbr.opacity=props.opacity;
+        }finally{pbr.destroy?.();}
+      }
+      // Preserve path only: do not fetch or embed external image data.
+      if(object.materialTexture)mat.setBitmapTextureFilename(object.materialTexture);
       const index=doc.materials().count;
       doc.materials().add(mat);
       if(doc.materials().count!==index+1)
@@ -102,8 +116,10 @@ export function createMesh3dmSession(meta,rhino){
           if(index!==null){
             attrs.materialIndex=index;
             attrs.materialSource=rhino.ObjectMaterialSource.MaterialFromObject;
-            attrs.objectColor={...object.materialColor,a:255};
-            attrs.colorSource=rhino.ObjectColorSource.ColorFromObject;
+            if(validColor(object.materialColor)){
+              attrs.objectColor={...object.materialColor,a:255};
+              attrs.colorSource=rhino.ObjectColorSource.ColorFromObject;
+            }else attrs.colorSource=rhino.ObjectColorSource.ColorFromLayer;
           }else{
             attrs.colorSource=rhino.ObjectColorSource.ColorFromLayer;
           }

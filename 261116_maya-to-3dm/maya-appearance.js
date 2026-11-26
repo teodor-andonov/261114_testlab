@@ -95,6 +95,25 @@ function readNodeColor(node){
   }
   return result;
 }
+function readMaterialProperties(node){
+  if(!node)return {};
+  const attrs=node.attrs,values={};
+  const get=(...keys)=>keys.map(k=>attrs.get(k)).find(v=>v?.length);
+  const scalar=(...keys)=>{const x=get(...keys)?.[0];return x!==undefined&&Number.isFinite(Number(x))?Math.max(0,Math.min(1,Number(x))):undefined;};
+  const average=v=>v?.length>=3&&v.slice(0,3).every(x=>Number.isFinite(Number(x)))?Math.max(0,Math.min(1,v.slice(0,3).reduce((s,x)=>s+Number(x),0)/3)):undefined;
+  if(["standardSurface","aiStandardSurface"].includes(node.type)){
+    const r=scalar("sr","specularRoughness","specular_roughness");
+    const m=scalar("metalness","mt","metallic");
+    const o=average(get("opacity","op"));
+    if(r!==undefined)values.roughness=r;
+    if(m!==undefined)values.metallic=m;
+    if(o!==undefined)values.opacity=o;
+  }else{
+    const t=average(get("it","transparency","tr"));
+    if(t!==undefined)values.opacity=1-t;
+  }
+  return values;
+}
 function readDisplayColor(node){
   if(!node)return null;
   const attrs=node.attrs;
@@ -117,7 +136,8 @@ export function applyMayaAppearance(parsed,source){
   const namedLayers=[...nodes.values()].filter(n=>n.type==="displayLayer"&&n.name!=="defaultLayer");
   const layerNameById=new Map(namedLayers.map(n=>[n.id,n.name]));
   const membership=new Map(),shaderByGroup=new Map(),groupByShape=new Map();
-  const textureTargets=new Set();
+  const textureTargets=new Set(),texturePaths=new Map();
+  let componentAssignments=0;
   for(const [src,dst] of connections){
     const a=attrRef(src),b=attrRef(dst);
     const from=nodes.get(resolve(a.node)),to=nodes.get(resolve(b.node));
@@ -137,10 +157,15 @@ export function applyMayaAppearance(parsed,source){
       shaderByGroup.set(to.id,from.id);
     if(to.type==="shadingEngine"&&isObjectMember(a.attr,b.attr)&&from.type==="mesh"){
       // Component-level assignments cannot be represented as one material/object.
-      if(aAttr==="iog"||aAttr==="instObjGroups")groupByShape.set(from.id,to.id);
+      if(/\.(og|objectGroups)\[/.test(a.attr)||aAttr==="og"||aAttr==="objectGroups")componentAssignments++;
+      else if(aAttr==="iog"||aAttr==="instObjGroups")groupByShape.set(from.id,to.id);
     }
     if(shaderTypes.has(to.type)&&["c","color","bc","baseColor","base_color"].includes(bAttr)
-       &&from.type==="file")textureTargets.add(to.id);
+       &&from.type==="file"){
+      textureTargets.add(to.id);
+      const path=from.attrs.get("ftn")?.[0]||from.attrs.get("fileTextureName")?.[0];
+      if(path)texturePaths.set(to.id,path);
+    }
   }
   const displayLayers=namedLayers.map(n=>({
     name:n.name,color:readDisplayColor(n),sourceId:n.id,
@@ -162,10 +187,13 @@ export function applyMayaAppearance(parsed,source){
     return {...object,
       layerName,layerColor:displayLayers.find(l=>l.name===layerName)?.color||null,
       materialName:shader?.name||null,
-      materialColor:shader?readNodeColor(shader):null
+      materialColor:shader?readNodeColor(shader):null,
+      materialProperties:readMaterialProperties(shader),
+      materialTexture:shader?texturePaths.get(shader.id)||null:null
     };
   });
   const warnings=[...parsed.warnings];
-  if(textured)warnings.push(textured+" objects use texture-driven colours; only saved shader RGB values are imported.");
+  if(textured)warnings.push(textured+" objects use texture-driven colours; direct bitmap paths are preserved as references, not embedded images. UV mapping and shader networks are not evaluated.");
+  if(componentAssignments)warnings.push(componentAssignments+" face/component material connections are not supported; affected objects may have incomplete materials.");
   return {...parsed,objects,displayLayers,warnings};
 }

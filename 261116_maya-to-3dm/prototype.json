@@ -1,6 +1,6 @@
 {
   "title": "Maya → Rhino",
-  "description": "Geometry-only Autodesk Maya ASCII (.ma) importer, control-cage preview and Rhino 3DM mesh export, with a Rhino-side native SubD conversion script.",
+  "description": "Local Maya ASCII and experimental binary static mesh importer, subdivision preview, Rhino 3DM geometry, materials, layers and groups.",
   "category": "Computational design",
   "status": "Experiment",
   "monogram": "MR",
