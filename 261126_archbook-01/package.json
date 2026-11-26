@@ -2,7 +2,7 @@
   "name": "testlab-archbook",
   "private": true,
   "type": "module",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
