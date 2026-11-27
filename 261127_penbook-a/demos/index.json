@@ -1,0 +1,42 @@
+[
+  {
+    "file": "01-journal.html",
+    "name": "Sketchbook / journal"
+  },
+  {
+    "file": "02-board.html",
+    "name": "Brainstorm board"
+  },
+  {
+    "file": "03-gallery.html",
+    "name": "Moodboard / gallery"
+  },
+  {
+    "file": "04-diagram.html",
+    "name": "Diagram / mind map"
+  },
+  {
+    "file": "05-note.html",
+    "name": "Simple text note"
+  },
+  {
+    "file": "06-report.html",
+    "name": "Research report"
+  },
+  {
+    "file": "07-slides.html",
+    "name": "Presentation"
+  },
+  {
+    "file": "08-website.html",
+    "name": "Website composition"
+  },
+  {
+    "file": "09-interactive.html",
+    "name": "Interactive document"
+  },
+  {
+    "file": "10-sheet.html",
+    "name": "Architectural sheet"
+  }
+]
