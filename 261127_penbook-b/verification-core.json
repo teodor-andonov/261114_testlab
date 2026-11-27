@@ -1,0 +1,42 @@
+[
+  {
+    "name": "10 standalone source round trips",
+    "pass": true,
+    "ms": 9
+  },
+  {
+    "name": "free/grid/flow/free retains positions",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "reparent preserves id; cycle rejected",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "duplicate remaps diagram relationships",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "unknown retained",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "invalid schema rejected",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "agent source edit regenerates",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "500-block stress serialize/parse",
+    "pass": true,
+    "ms": 8
+  }
+]

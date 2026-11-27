@@ -1,0 +1,14 @@
+{
+  "title": "Penbook B",
+  "description": "Declarative, file-first visual composition with native HTML, CSS and SVG payloads.",
+  "category": "Local-first / Design",
+  "status": "Prototype",
+  "version": "0.1.0",
+  "tags": [
+    "HTML",
+    "JSON",
+    "Sketch",
+    "Composition"
+  ],
+  "icon": "notebook-pen"
+}
