@@ -1,0 +1,13 @@
+{
+  "title": "Penbook A",
+  "description": "Native HTML composition and sketchbook",
+  "category": "Local-first / Writing",
+  "status": "Prototype",
+  "version": "0.1.0",
+  "tags": [
+    "HTML",
+    "Composition",
+    "File-first"
+  ],
+  "icon": "notebook-pen"
+}
