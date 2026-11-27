@@ -1,0 +1,16 @@
+{
+  "title": "Penbook Format Lab",
+  "description": "Disposable comparison of JSON, embedded HTML and ZIP document storage.",
+  "version": "0.1.0",
+  "icon": "book-open",
+  "tags": [
+    "Test",
+    "File formats",
+    "Penbook"
+  ],
+  "shellPages": [
+    "index.html"
+  ],
+  "status": "Test",
+  "category": "File format test"
+}
