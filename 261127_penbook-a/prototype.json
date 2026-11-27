@@ -9,5 +9,8 @@
     "Composition",
     "File-first"
   ],
-  "icon": "notebook-pen"
+  "icon": "notebook-pen",
+  "shellPages": [
+    "index.html"
+  ]
 }

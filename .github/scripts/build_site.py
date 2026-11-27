@@ -117,8 +117,21 @@ def main():
         app_theme = folder / "testlab-theme.css"
         if app_theme.is_file():
             shutil.copy2(app_theme, target / "testlab-theme.css")
+        # Some prototypes ship HTML documents as data, not app pages.
+        # An explicit shellPages allowlist keeps those documents byte-for-byte intact.
+        shell_pages = info.get("shellPages")
+        if shell_pages is not None:
+            if (not isinstance(shell_pages, list) or "index.html" not in shell_pages
+                    or any(not isinstance(p, str) for p in shell_pages)):
+                raise ValueError(f"{folder.name}: shellPages must list HTML paths including index.html")
+            for name in shell_pages:
+                path = Path(name)
+                if (path.is_absolute() or ".." in path.parts or path.suffix != ".html"
+                        or not (target / path).is_file()):
+                    raise ValueError(f"{folder.name}: invalid shell page {name}")
         for page in target.rglob("*.html"):
-            if "assets" not in page.relative_to(target).parts:
+            relative = page.relative_to(target)
+            if "assets" not in relative.parts and (shell_pages is None or relative.as_posix() in shell_pages):
                 inject_shell(page, folder.name, app_theme.is_file(), version, commit)
 
     projects.sort(key=lambda p: (p["date"], p["createdAt"] or "", p["folder"]), reverse=True)
