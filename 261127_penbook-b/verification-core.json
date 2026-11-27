@@ -1,42 +1,62 @@
 [
   {
-    "name": "10 standalone source round trips",
+    "name": "all ten demo source envelopes + reference fixture",
     "pass": true,
-    "ms": 9
+    "ms": 8
   },
   {
-    "name": "free/grid/flow/free retains positions",
-    "pass": true,
-    "ms": 0
-  },
-  {
-    "name": "reparent preserves id; cycle rejected",
+    "name": "layout conversion",
     "pass": true,
     "ms": 0
   },
   {
-    "name": "duplicate remaps diagram relationships",
+    "name": "nested free positioning stays absolute",
     "pass": true,
     "ms": 0
   },
   {
-    "name": "unknown retained",
+    "name": "reparent + reject cycle",
     "pass": true,
     "ms": 1
   },
   {
-    "name": "invalid schema rejected",
+    "name": "duplicate graph ID remap",
     "pass": true,
     "ms": 0
   },
   {
-    "name": "agent source edit regenerates",
+    "name": "unknown preserved",
     "pass": true,
     "ms": 0
   },
   {
-    "name": "500-block stress serialize/parse",
+    "name": "malformed source rejected",
     "pass": true,
-    "ms": 8
+    "ms": 0
+  },
+  {
+    "name": "source fingerprint fresh vs stale",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "inert JSON script-breakout escaping",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "rich HTML strips execution attributes",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "500-block stress roundtrip",
+    "pass": true,
+    "ms": 14
+  },
+  {
+    "name": "app module syntax",
+    "pass": true,
+    "ms": 1
   }
 ]
