@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Sketchbook journal",
+    "path": "demos/01.html"
+  },
+  {
+    "name": "Brainstorm board",
+    "path": "demos/02.html"
+  },
+  {
+    "name": "Moodboard gallery",
+    "path": "demos/03.html"
+  },
+  {
+    "name": "Diagram mind map",
+    "path": "demos/04.html"
+  },
+  {
+    "name": "Simple text note",
+    "path": "demos/05.html"
+  },
+  {
+    "name": "Research report",
+    "path": "demos/06.html"
+  },
+  {
+    "name": "Presentation",
+    "path": "demos/07.html"
+  },
+  {
+    "name": "Website composition",
+    "path": "demos/08.html"
+  },
+  {
+    "name": "Interactive document",
+    "path": "demos/09.html"
+  },
+  {
+    "name": "Architectural sheet",
+    "path": "demos/10.html"
+  }
+]

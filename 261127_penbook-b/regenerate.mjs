@@ -1,0 +1,1 @@
+import {readFile,writeFile} from 'node:fs/promises';import {P} from './core.mjs';const [input,output]=process.argv.slice(2);if(!input||!output||input===output)throw Error('Usage: node regenerate.mjs input.html output.html (different paths)');await writeFile(output,P.envelope(P.parse(await readFile(input,'utf8'))));

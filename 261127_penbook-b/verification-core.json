@@ -1,0 +1,82 @@
+[
+  {
+    "name": "all ten demo source envelopes + reference fixture",
+    "pass": true,
+    "ms": 14
+  },
+  {
+    "name": "layout conversion",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "nested free positioning stays absolute",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "reparent + reject cycle",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "duplicate graph ID remap",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "unknown preserved",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "malformed source rejected",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "source fingerprint fresh vs stale",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "inert JSON script-breakout escaping",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "rich HTML strips execution attributes",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "500-block stress roundtrip",
+    "pass": true,
+    "ms": 17
+  },
+  {
+    "name": "page template propagation and local override",
+    "pass": true,
+    "ms": 0
+  },
+  {
+    "name": "component propagation",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "cross-document composition reuse",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "reference snapshot preserved",
+    "pass": true,
+    "ms": 1
+  },
+  {
+    "name": "source trial: create, nest gallery, named style, move, widget, linked resource",
+    "pass": true,
+    "ms": 1
+  }
+]
