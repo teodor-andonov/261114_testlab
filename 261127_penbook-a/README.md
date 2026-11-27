@@ -18,4 +18,4 @@ Author markup is loaded into an iframe with allow-same-origin but **without allo
 
 ## Verification and limitations
 
-See VERIFICATION.md. This is a first independent implementation, not a completed comparative experiment. No B implementation was inspected or modified. Version/commit labels and navigation dot are supplied by Testlab on publication. Branch remains unmerged for sequential integration.
+See VERIFICATION.md. Open tests.html from the same HTTP origin to run the browser contract harness. This is a first independent implementation, not a completed comparative experiment. No B implementation was inspected or modified. Version/commit labels and navigation dot are supplied by Testlab on publication. Branch remains unmerged for sequential integration.

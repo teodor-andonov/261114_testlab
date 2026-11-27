@@ -6,6 +6,9 @@
 - Repository scope: only the assigned prototype folder is intended to change.
 - Browser runtime, Chromium native file handles, offline and trust boundary: **not executed** in the authoring environment. No performance timings or independent agent trial. No publication.
 
+## Browser contract harness
+Open tests.html from the served prototype folder. It checks all ten fixture round-trips, placement retention, duplicate identity, rejection of active content and duplicate IDs, opaque markup preservation, graph updates and editor-marker exclusion. Harness syntax checked; actual browser execution pending.
+
 ## Manual acceptance checklist (not yet executed)
 | Scenario | Steps | Implementation / gap |
 |---|---|---|
