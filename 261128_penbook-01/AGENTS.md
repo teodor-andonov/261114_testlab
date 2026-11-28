@@ -1,0 +1,3 @@
+# Penbook Prototype 01 — scoped guidance
+
+Read the Testlab root AGENTS.md first. Then read [Penbook agent guidance](docs/AGENTS.md), [Vision](docs/PENBOOK_VISION.md), [Architecture](docs/PENBOOK_ARCHITECTURE.md), [Prototype 01](docs/PENBOOK_PROTOTYPE_01.md) and [Implementation plan](docs/PENBOOK_IMPLEMENTATION_PLAN.md). Prototype 01 is the scope authority. Work independently from prior prototypes and other repositories; do not consult previous chats. Keep implementation in this folder. The supplied docs in docs/ are the founding reference; record actual implementation decisions, test evidence and deviations separately. Do not add a discoverable prototype manifest until a working entry point exists.
