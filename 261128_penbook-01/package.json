@@ -1,0 +1,13 @@
+{
+  "name": "penbook-01",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/core.test.js",
+    "check": "node --check src/index.js && node --test tests/core.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

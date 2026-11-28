@@ -1,0 +1,131 @@
+{
+  "format": "penbook",
+  "schemaVersion": 1,
+  "id": "sample",
+  "title": "Stage 01 source fixture",
+  "metadata": {},
+  "root": {
+    "id": "root",
+    "kind": "container",
+    "common": {},
+    "placement": null,
+    "layout": {
+      "type": "flow",
+      "direction": "vertical",
+      "gap": 8,
+      "padding": 0
+    },
+    "extent": {
+      "x": {
+        "mode": "fixed",
+        "value": 800
+      },
+      "y": {
+        "mode": "auto"
+      }
+    },
+    "appearance": {},
+    "children": [
+      {
+        "id": "note",
+        "kind": "content",
+        "type": "test-note",
+        "common": {},
+        "placement": {
+          "drawOrder": 0,
+          "size": {
+            "x": {
+              "mode": "fit"
+            },
+            "y": {
+              "mode": "fit"
+            }
+          },
+          "byLayout": {
+            "flow": {}
+          }
+        },
+        "properties": {},
+        "data": {
+          "text": "# Foundation",
+          "asset": null,
+          "target": null
+        }
+      },
+      {
+        "id": "nested",
+        "kind": "container",
+        "common": {},
+        "placement": {
+          "drawOrder": 0,
+          "size": {
+            "x": {
+              "mode": "fit"
+            },
+            "y": {
+              "mode": "fit"
+            }
+          },
+          "byLayout": {
+            "flow": {}
+          }
+        },
+        "layout": {
+          "type": "grid",
+          "columns": 2,
+          "rows": 2,
+          "gap": 8
+        },
+        "extent": {
+          "x": {
+            "mode": "fixed",
+            "value": 400
+          },
+          "y": {
+            "mode": "fixed",
+            "value": 300
+          }
+        },
+        "appearance": {},
+        "children": [
+          {
+            "id": "second",
+            "kind": "content",
+            "type": "test-note",
+            "common": {},
+            "placement": {
+              "drawOrder": 0,
+              "size": {
+                "x": {
+                  "mode": "fit"
+                },
+                "y": {
+                  "mode": "fit"
+                }
+              },
+              "byLayout": {
+                "grid": {
+                  "column": 1,
+                  "row": 1,
+                  "columnSpan": 1,
+                  "rowSpan": 1
+                }
+              }
+            },
+            "properties": {},
+            "data": {
+              "text": "Nested block",
+              "asset": null,
+              "target": "note"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "preset": {
+    "view": "scroll",
+    "mode": "composition"
+  },
+  "resources": {}
+}
